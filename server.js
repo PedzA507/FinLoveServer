@@ -2,25 +2,23 @@ const express = require('express');
 const mysql = require('mysql2');
 const app = express();
 const port = 5000;
-
 const https = require('https');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const SECRET_KEY = 'UX23Y24%@&2aMb';
+const SECRET_KEY = process.env.SECRET_KEY || 'UX23Y24%@&2aMb';
 
 const fileupload = require('express-fileupload');
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
-
-// Load SSL certificates
 const privateKey = fs.readFileSync('privatekey.pem', 'utf8');
 const certificate = fs.readFileSync('certificate.pem', 'utf8');
 const credentials = { key: privateKey, cert: certificate };
 
 // Import CORS library
 const cors = require('cors');
+require('dotenv').config();  // ต้องแน่ใจว่าได้โหลดไฟล์ .env แล้ว
 
 // Database(MySql) configuration
 const db = mysql.createConnection({
@@ -29,7 +27,15 @@ const db = mysql.createConnection({
     password: "1234",
     database: "finlove"
 });
-db.connect();
+
+db.connect((err) => {
+    if (err) {
+        console.error('Error connecting to the database:', err);
+        process.exit(1); // ปิดการทำงานหากไม่สามารถเชื่อมต่อได้
+    }
+    console.log('Connected to the database');
+});
+
 
 // Middleware (Body parser)
 app.use(express.json());
@@ -50,9 +56,19 @@ const storage = multer.diskStorage({
         cb(null, uploadPath);
     },
     filename: function (req, file, cb) {
-        cb(null, Date.now() + '-' + file.originalname);
+        // ตรวจสอบประเภทไฟล์ที่อัปโหลด
+        const filetypes = /jpeg|jpg|png/;
+        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = filetypes.test(file.mimetype);
+
+        if (extname && mimetype) {
+            cb(null, Date.now() + '-' + file.originalname);
+        } else {
+            cb(new Error('Invalid file type'));
+        }
     }
 });
+
 const upload = multer({ storage: storage });
 
 // Function to execute a query with a promise-based approach
@@ -72,6 +88,7 @@ function query(sql, params) {
 
 
 ////////////////////////////////////////////////////////////////////////// Login ////////////////////////////////////////////////////////////////////////////////////
+
 
 
 //Login
@@ -245,8 +262,18 @@ app.get('/api/profile/:id', async function(req, res) {
             return res.send({'message':'ไม่พบผู้ใช้งาน', 'status': false});
         }
 
-        // ส่งข้อมูล user รวมถึง userID กลับไปให้ frontend
+        // ดึงประวัติการถูกรายงาน
+        let reportSQL = `
+            SELECT r.reportType 
+            FROM userreport ur
+            JOIN report r ON ur.reportID = r.reportID
+            WHERE ur.reportedID = ?
+        `;
+        let reportHistory = await query(reportSQL, [userID]);
+
+        // ส่งข้อมูล user และประวัติการโดนรายงานกลับไปให้ frontend
         user = user[0];
+        user['reportHistory'] = reportHistory;  // เพิ่มประวัติการรายงานใน object user
         user['message'] = 'success';
         user['status'] = true;
 

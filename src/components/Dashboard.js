@@ -28,7 +28,7 @@ const pageData = [
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState([]); // กำหนดค่าเริ่มต้นเป็น array เปล่า
 
   useEffect(() => {
     // ดึงข้อมูลผู้ใช้ที่ถูก report จาก API
@@ -36,10 +36,16 @@ export default function Dashboard() {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then((response) => {
-      setUsers(response.data); // ตั้งค่าผู้ใช้จากการตอบสนองของ API
+      const data = response.data;
+      if (Array.isArray(data)) {  // ตรวจสอบว่าข้อมูลที่ได้กลับมาเป็น array หรือไม่
+        setUsers(data); // ตั้งค่าผู้ใช้จากการตอบสนองของ API
+      } else {
+        setUsers([]);  // ถ้าข้อมูลไม่ใช่ array ให้ตั้งเป็น array เปล่า
+      }
     })
     .catch((error) => {
       console.error('Error fetching users:', error);
+      setUsers([]);  // ตั้งค่าเป็น array เปล่าเมื่อเกิดข้อผิดพลาด
     });
   }, []);
 
@@ -231,7 +237,7 @@ export default function Dashboard() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {users.map((user) => (
+                  {Array.isArray(users) && users.map((user) => (  // ตรวจสอบว่า users เป็น array ก่อนใช้ .map()
                     <TableRow key={user.userID}>
                       <TableCell align="center" sx={{ padding: '16px' }}>{user.userID}</TableCell>
                       <TableCell align="center" sx={{ padding: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -244,41 +250,45 @@ export default function Dashboard() {
                       <TableCell align="left" sx={{ padding: '16px' }}>{user.username}</TableCell>
                       <TableCell align="left" sx={{ padding: '16px' }}>{user.reportType || 'ไม่ระบุเหตุผล'}</TableCell>
                       <TableCell align="center" sx={{ padding: '16px' }}>
-                        <ButtonGroup color="primary" aria-label="outlined primary button group">
-                          <Button
-                            variant="outlined"
-                            sx={{
-                              borderRadius: '5px',
-                              color: user.isActive === 0 ? '#fff' : '#FF0000',
-                              borderColor: 'red',
-                              backgroundColor: user.isActive === 0 ? '#f97d7d' : 'transparent',
-                              '&:hover': {
-                                backgroundColor: user.isActive === 0 ? '#FF0000' : '#ffe6e6',
-                              },
-                            }}
-                            onClick={() => handleBanUser(user.userID)}
-                            disabled={user.isActive === 0} // ปิดการใช้งานปุ่มระงับถ้าผู้ใช้ถูกระงับแล้ว
-                          >
-                            ระงับผู้ใช้
-                          </Button>
-                          <Button
-                            variant="outlined"
-                            sx={{
-                              borderRadius: '5px',
-                              color: user.isActive === 1 ? '#fff' : '#00FF00',
-                              borderColor: 'black',
-                              backgroundColor: user.isActive === 1 ? '#abfcab' : 'transparent',
-                              '&:hover': {
-                                backgroundColor: user.isActive === 1 ? '#00ff00' : '#f8e9f0',
-                              },
-                            }}
-                            onClick={() => handleUnbanUser(user.userID)}
-                            disabled={user.isActive === 1} // ปิดการใช้งานปุ่มปลดแบนถ้าผู้ใช้ยังไม่ถูกระงับ
-                          >
-                            ปลดแบน
-                          </Button>
-                        </ButtonGroup>
-                      </TableCell>
+  <ButtonGroup color="primary" aria-label="outlined primary button group">
+    {/* ปุ่มระงับผู้ใช้ - สีแดง */}
+    <Button
+      variant="contained"
+      sx={{
+        borderRadius: '8px',
+        color: '#fff',  // สีตัวอักษรเป็นสีขาว
+        borderColor: '#c62828', // สีขอบแดงเข้ม
+        backgroundColor: user.isActive === 0 ? '#e57373' : '#c62828', // สีแดงอ่อนเมื่อถูกระงับ, สีแดงเข้มเมื่อพร้อมใช้งาน
+        '&:hover': {
+          backgroundColor: '#b71c1c', // สีแดงเข้มขึ้นเมื่อ hover
+        },
+      }}
+      onClick={() => handleBanUser(user.userID)}
+      disabled={user.isActive === 0} // ปิดการใช้งานปุ่มระงับถ้าผู้ใช้ถูกระงับแล้ว
+    >
+      ระงับผู้ใช้
+    </Button>
+
+    {/* ปุ่มปลดแบน - สีน้ำเงิน */}
+    <Button
+      variant="contained"
+      sx={{
+        borderRadius: '8px',
+        color: '#fff',  // สีตัวอักษรเป็นสีขาว
+        borderColor: '#1565c0', // สีขอบน้ำเงินเข้ม
+        backgroundColor: user.isActive === 1 ? '#64b5f6' : '#1565c0', // สีน้ำเงินอ่อนเมื่อปลดแบน, สีน้ำเงินเข้มเมื่อพร้อมใช้งาน
+        '&:hover': {
+          backgroundColor: '#0d47a1', // สีน้ำเงินเข้มขึ้นเมื่อ hover
+        },
+      }}
+      onClick={() => handleUnbanUser(user.userID)}
+      disabled={user.isActive === 1} // ปิดการใช้งานปุ่มปลดแบนถ้าผู้ใช้ยังไม่ถูกระงับ
+    >
+      ปลดแบน
+    </Button>
+  </ButtonGroup>
+</TableCell>
+
                     </TableRow>
                   ))}
                 </TableBody>

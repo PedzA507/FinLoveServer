@@ -4,28 +4,16 @@ import Avatar from '@mui/material/Avatar';
 import Grid from '@mui/material/Grid';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import Container from '@mui/material/Container';
 import Divider from '@mui/material/Divider';
 import Box from '@mui/material/Box';
-import Drawer from '@mui/material/Drawer';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
-import Toolbar from '@mui/material/Toolbar';
-import HomeIcon from '@mui/icons-material/Home';
-import AnalyticsIcon from '@mui/icons-material/Analytics';
-import PeopleIcon from '@mui/icons-material/People';
-import SettingsIcon from '@mui/icons-material/Settings';
-import FeedbackIcon from '@mui/icons-material/Feedback';
-import InfoIcon from '@mui/icons-material/Info';
+import Button from '@mui/material/Button';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from "axios";
 import BackgroundImage from '../../assets/BG.png';
 
-// Custom theme
 const customTheme = createTheme({
   palette: {
     primary: {
@@ -52,83 +40,57 @@ const customTheme = createTheme({
   },
 });
 
-const drawerWidth = 240;
 const token = localStorage.getItem('token');
 const url = process.env.REACT_APP_BASE_URL;
 
 export default function ViewEmployee() {
   const [employee, setEmployee] = useState({});
-  const { id } = useParams();  // employeeID from the clicked profile
+  const [reportHistory, setReportHistory] = useState([]);
+  const { id } = useParams();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Fetch the current employee data
-    axios.get(`${url}/employee/${id}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-      .then(response => {
-        const employeeData = response.data;
-        setEmployee(employeeData);
-      })
-      .catch(error => {
-        console.error('Error fetching employee data:', error);
-      });
+    axios.get(`${url}/employee/${id}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+    .then(response => {
+      const employeeData = response.data;
+      setEmployee(employeeData);
+      setReportHistory(employeeData.reportHistory || []);
+    })
+    .catch(error => {
+      console.error('Error fetching employee data:', error);
+    });
   }, [id]);
 
-  const UpdateEmployee = (id) => {
+  const handleUpdateEmployee = () => {
     navigate(`/admin/employee/update/${id}`);
-  }
-
-  const menuItems = [
-    { text: 'Home', icon: <HomeIcon />, action: () => navigate('/') },
-    { text: 'Clients', icon: <PeopleIcon />, action: () => navigate('/admin/customer') },
-    { text: 'Tasks', icon: <AnalyticsIcon />, action: () => navigate('/tasks') },
-    { text: 'Settings', icon: <SettingsIcon />, action: () => navigate('/settings') },
-    { text: 'Feedback', icon: <FeedbackIcon />, action: () => navigate('/feedback') },
-    { text: 'About', icon: <InfoIcon />, action: () => navigate('/about') },
-  ];
+  };
 
   return (
     <ThemeProvider theme={customTheme}>
-      <Box sx={{ display: 'flex', minHeight: '100vh', backgroundImage: `url(${BackgroundImage})`, backgroundSize: 'cover' }}>
-        {/* Sidebar */}
-        <Drawer
-          variant="permanent"
-          sx={{
-            width: drawerWidth,
-            flexShrink: 0,
-            '& .MuiDrawer-paper': {
-              width: drawerWidth,
-              backgroundColor: '#f4f4f4',
-            },
-          }}
-        >
-          <Toolbar />
-          <Box sx={{ overflow: 'auto' }}>
-            <List>
-              {menuItems.map((item, index) => (
-                <ListItem button key={item.text} onClick={item.action}>
-                  <ListItemIcon>
-                    {item.icon}
-                  </ListItemIcon>
-                  <ListItemText primary={item.text} />
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-        </Drawer>
-
-        {/* Main content */}
+      <Box sx={{ display: 'flex', justifyContent: 'center', minHeight: '100vh', backgroundImage: `url(${BackgroundImage})`, backgroundSize: 'cover' }}>
         <Container maxWidth="md" sx={{ marginTop: 10, marginBottom: 10, display: 'flex', justifyContent: 'center' }}>
           <Card sx={{ backgroundColor: '#fff', borderRadius: '15px', boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)', padding: '30px', width: '100%' }}>
             <CardContent>
+              <Box display="flex" alignItems="center" sx={{ mb: 3 }}>
+                <Button
+                  startIcon={<ArrowBackIcon />}
+                  onClick={() => navigate(-1)}
+                  sx={{ color: '#1976d2', fontWeight: 'bold', marginBottom: 1 }}
+                >
+                  ย้อนกลับ
+                </Button>
+              </Box>
+
               <Grid container spacing={4} alignItems="center">
                 <Grid item xs={12} sm={4}>
-                  <Avatar sx={{ width: 150, height: 150 }}
-                    src={employee.imageFile ? `${url}/employee/image/${employee.imageFile}` : '/path/to/default-avatar.jpg'} />
+                  <Avatar
+                    sx={{ width: 150, height: 150 }}
+                    src={employee.imageFile ? `${url}/employee/image/${employee.imageFile}` : '/path/to/default-avatar.jpg'}
+                  />
                 </Grid>
                 <Grid item xs={12} sm={8}>
                   <Typography variant="h4" gutterBottom>
@@ -142,14 +104,11 @@ export default function ViewEmployee() {
                   </Typography>
                 </Grid>
               </Grid>
-              <Divider sx={{ marginY: 2 }} />
+              <Divider sx={{ my: 2 }} />
               <Typography variant="body1" gutterBottom>
                 เบอร์โทร : {employee.phonenumber || "ไม่ระบุ"}
               </Typography>
-              <Divider sx={{ marginY: 2 }} />
-              <Button variant="contained" color="primary" onClick={() => UpdateEmployee(id)}>
-                แก้ไขบัญชีผู้ใช้
-              </Button>
+              <Divider sx={{ my: 2 }} />
             </CardContent>
           </Card>
         </Container>

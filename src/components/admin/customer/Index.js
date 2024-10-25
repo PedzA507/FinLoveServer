@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Button, Container, Paper, Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Avatar, ButtonGroup } from '@mui/material';
 import { useNavigate } from "react-router-dom";
 import axios from 'axios';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'; // ใช้ไอคอนสำหรับปุ่มย้อนกลับ
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 const token = localStorage.getItem('token');
 const url = process.env.REACT_APP_BASE_URL;
@@ -106,13 +106,13 @@ export default function Index() {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F8E9F0' }}>
-      <Container sx={{ marginTop: 2 }} maxWidth="lg">
-        <Paper sx={{ padding: 2, backgroundColor: '#fff', borderRadius: 3, border: '2px solid black' }}> {/* เพิ่มกรอบสีดำ */}
+      <Container sx={{ marginTop: 3 }} maxWidth="lg">
+        <Paper sx={{ padding: 3, backgroundColor: '#ffffff', borderRadius: 4, border: '1px solid #e0e0e0' }}>
           <Box display="flex" justifyContent="flex-start" alignItems="center" sx={{ mb: 2 }}>
             <Button
-              startIcon={<ArrowBackIcon sx={{ fontSize: '20px', color: 'black' }} />}  // ปรับขนาดและสีของไอคอน
+              startIcon={<ArrowBackIcon sx={{ fontSize: '20px', color: 'black' }} />}
               onClick={() => navigate('/dashboard')}
-              sx={{ mr: 2, color: 'black', fontWeight: 'bold', fontSize: '20px' }} // ปรับสีและขนาดของข้อความ
+              sx={{ mr: 2, color: '#333', fontWeight: 'bold', fontSize: '18px' }}
             >
               จัดการข้อมูลผู้ใช้
             </Button>
@@ -142,71 +142,79 @@ export default function Index() {
                     <TableCell align="left">{user.lastname}</TableCell>
                     <TableCell align="left">{user.username}</TableCell>
                     <TableCell align="center">
-                      <ButtonGroup color="primary" aria-label="outlined primary button group">
-
-                        <Button 
-                          variant="outlined" 
-                          onClick={() => ViewUser(user.userID)} 
-                          sx={{ border: '1px solid black' }}  // ใส่กรอบสีดำ
+                      <ButtonGroup>
+                        <Button
+                          variant="outlined"
+                          onClick={() => ViewUser(user.userID)}
+                          sx={{
+                            color: '#555',
+                            borderColor: '#e0e0e0',
+                            '&:hover': {
+                              backgroundColor: '#f0f4f8',
+                            },
+                          }}
                         >
                           ตรวจสอบรายงาน
                         </Button>
 
-                        <Button 
-                          variant="outlined" 
-                          onClick={() => UpdateUser(user.userID)} 
-                          sx={{ border: '1px solid black' }}  // ใส่กรอบสีดำ
+                        <Button
+                          variant="outlined"
+                          onClick={() => UpdateUser(user.userID)}
+                          sx={{
+                            color: '#555',
+                            borderColor: '#e0e0e0',
+                            '&:hover': {
+                              backgroundColor: '#f0f4f8',
+                            },
+                          }}
                         >
                           แก้ไข
                         </Button>
 
-                        {/* ปุ่มระงับผู้ใช้ */}
-                        <Button 
-                          variant="outlined" 
-                          color="secondary" 
-                          onClick={() => UserBan(user.userID)} 
+                        <Button
+                          variant="contained"
+                          onClick={() => UserBan(user.userID)}
                           disabled={user.isActive === 0}
                           sx={{
-                            border: '1px solid black',
-                            color: user.isActive === 0 ? '#fff' : '#FF0000', // สีตัวอักษรแดงเข้มเมื่อยังไม่ถูกแบน
-                            backgroundColor: user.isActive === 0 ? '#f97d7d' : 'transparent', // พื้นหลังแดงเข้มเมื่อถูกกด
-                            fontWeight: 'bold',
+                            color: '#fff',
+                            backgroundColor: user.isActive === 0 ? '#ffb3b3' : '#ff6961',
                             '&:hover': {
-                              backgroundColor: user.isActive === 0 ? '#FF0000' : 'rgba(255, 0, 0, 0.1)', // พื้นหลังโปร่งเมื่อ hover
-                            }
+                              backgroundColor: user.isActive === 0 ? '#ff6961' : '#ff4c4c',
+                            },
                           }}
                         >
                           ระงับผู้ใช้
                         </Button>
 
-                        {/* ปุ่มปลดแบน */}
-                        <Button 
-                          variant="outlined" 
-                          color="primary" 
-                          onClick={() => UserUnban(user.userID)} 
-                          disabled={user.isActive === 1} 
+                        <Button
+                          variant="contained"
+                          onClick={() => UserUnban(user.userID)}
+                          disabled={user.isActive === 1}
                           sx={{
-                            border: '1px solid black',
-                            color: user.isActive === 1 ? '#fff' : '#00FF00', // สีเขียวเมื่อยังไม่ได้กด
-                            backgroundColor: user.isActive === 1 ? '#abfcab' : 'transparent', // พื้นหลังเขียวเมื่อกดแล้ว
-                            fontWeight: 'bold',
+                            color: '#fff',
+                            backgroundColor: user.isActive === 1 ? '#b3cde0' : '#4682b4',
                             '&:hover': {
-                              backgroundColor: user.isActive === 1 ? '#00FF00' : 'rgba(0, 255, 0, 0.1)', // พื้นหลังโปร่งเมื่อ hover
-                            }
+                              backgroundColor: user.isActive === 1 ? '#4682b4' : '#5a9bd4',
+                            },
                           }}
                         >
                           ปลดแบน
                         </Button>
 
-                        <Button 
-                          variant="contained" 
-                          color="error" 
-                          onClick={() => UserDelete(user.userID)} 
-                          sx={{ border: '1px solid black' }}  // ใส่กรอบสีดำ
+                        <Button
+                          variant="contained"
+                          color="error"
+                          onClick={() => UserDelete(user.userID)}
+                          sx={{
+                            backgroundColor: '#ffb3b3',
+                            color: '#fff',
+                            '&:hover': {
+                              backgroundColor: '#ff4c4c',
+                            },
+                          }}
                         >
                           ลบผู้ใช้
                         </Button>
-
                       </ButtonGroup>
                     </TableCell>
                   </TableRow>
