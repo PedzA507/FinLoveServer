@@ -1183,40 +1183,61 @@ app.post('/api/delete-chat', (req, res) => {
 app.post('/api/block-chat', (req, res) => {
     const { userID, matchID, isBlocked } = req.body;
 
+    // Validate input
     if (!userID || !matchID || isBlocked === undefined) {
         return res.status(400).json({ error: 'Missing userID, matchID, or isBlocked' });
     }
 
-    // ดึง userID2 จากตาราง matches
+    // Query to get userID2 from the matches table
     const matchQuery = `SELECT user1ID, user2ID FROM matches WHERE matchID = ?`;
     db.query(matchQuery, [matchID], (err, results) => {
         if (err || results.length === 0) {
             return res.status(500).json({ error: 'Match not found or database error' });
         }
 
-        // ตรวจสอบว่าผู้ใช้ที่บล็อกคือ user1ID หรือ user2ID
+        // Determine userID2 based on who is blocking
         const match = results[0];
         const userID2 = match.user1ID === userID ? match.user2ID : match.user1ID;
 
-        // ดำเนินการ INSERT หรือ UPDATE ลงใน blocked_chats
-        const query = `
-            INSERT INTO blocked_chats (user1ID, user2ID, matchID, isBlocked, blockTimestamp)
-            VALUES (?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE 
-                isBlocked = VALUES(isBlocked),
-                blockTimestamp = NOW();
-        `;
-
-        db.query(query, [userID, userID2, matchID, isBlocked ? 1 : 0], (err, result) => {
+        // Check if a block record already exists for this user pair
+        const checkQuery = `SELECT blockID FROM blocked_chats WHERE user1ID = ? AND user2ID = ?`;
+        db.query(checkQuery, [userID, userID2], (err, checkResult) => {
             if (err) {
                 console.error('Database error:', err);
                 return res.status(500).json({ error: 'Database error' });
             }
 
-            res.status(200).json({ success: isBlocked ? 'Chat blocked successfully' : 'Chat unblocked successfully' });
+            if (checkResult.length > 0) {
+                // Block exists, update the isBlocked status and timestamp
+                const updateQuery = `
+                    UPDATE blocked_chats 
+                    SET isBlocked = ?, blockTimestamp = NOW() 
+                    WHERE user1ID = ? AND user2ID = ?`;
+                db.query(updateQuery, [isBlocked ? 1 : 0, userID, userID2], (err, result) => {
+                    if (err) {
+                        console.error('Database error:', err);
+                        return res.status(500).json({ error: 'Database error' });
+                    }
+                    res.status(200).json({ success: isBlocked ? 'Chat blocked successfully' : 'Chat unblocked successfully' });
+                });
+            } else {
+                // No block exists, insert a new record
+                const insertQuery = `
+                    INSERT INTO blocked_chats (user1ID, user2ID, matchID, isBlocked, blockTimestamp)
+                    VALUES (?, ?, ?, ?, NOW())`;
+                db.query(insertQuery, [userID, userID2, matchID, isBlocked ? 1 : 0], (err, result) => {
+                    if (err) {
+                        console.error('Database error:', err);
+                        return res.status(500).json({ error: 'Database error' });
+                    }
+                    res.status(200).json({ success: 'Chat blocked successfully' });
+                });
+            }
         });
     });
 });
+
+
 
 
 // API Unblock User
