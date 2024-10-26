@@ -51,7 +51,9 @@ const transporter = nodemailer.createTransport({
 });
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////// Login Logout /////////////////////////////////////////////////////////////
+
 
 
 // API สำหรับการเข้าสู่ระบบ
@@ -137,7 +139,8 @@ app.post('/api/login', async function(req, res) {
     }
 });
 
-// Logout endpoint
+
+// API Logout
 app.post('/api/logout/:id', async (req, res) => {
     const { id } = req.params;
     const updateSql = "UPDATE User SET isActive = 1, loginAttempt = 0 WHERE userID = ?";
@@ -152,9 +155,11 @@ app.post('/api/logout/:id', async (req, res) => {
 });
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////// register /////////////////////////////////////////////////////////////
 
 
+// API Email Uniqe
 app.post('/api/checkUsernameEmail', async function(req, res) {
     const { username, email } = req.body;
 
@@ -182,7 +187,7 @@ app.post('/api/checkUsernameEmail', async function(req, res) {
 });
 
 
-
+// API Register
 app.post('/api/register8', upload.single('imageFile'), async function(req, res) {
     const { email, username, password, firstname, lastname, nickname, gender, height, phonenumber, home, dateOfBirth, educationID, preferences, goalID, interestGenderID } = req.body;
     const fileName = req.file ? req.file.filename : null;
@@ -239,9 +244,11 @@ app.post('/api/register8', upload.single('imageFile'), async function(req, res) 
 });
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////// Forgot Password /////////////////////////////////////////////////////////////
 
 
+// API Request PIN
 app.post('/api/request-pin', async (req, res) => {
     const { email } = req.body;
 
@@ -286,6 +293,7 @@ app.post('/api/request-pin', async (req, res) => {
 });
 
 
+// API Verify PIN
 app.post('/api/verify-pin', async (req, res) => {
     const { email, pin } = req.body;
 
@@ -316,6 +324,8 @@ app.post('/api/verify-pin', async (req, res) => {
     }
 });
 
+
+// API Reset Password
 app.post('/api/reset-password', async (req, res) => {
     const { email, pin, newPassword } = req.body;
 
@@ -360,10 +370,12 @@ app.post('/api/reset-password', async (req, res) => {
 });
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////// User Manage /////////////////////////////////////////////////////////////
 
 
-// แสดงข้อมูลผู้ใช้ทั้งหมด
+
+// API Show All User
 app.get('/api/user', function(req, res) {        
     const sql = "SELECT username, imageFile, preferences, verify FROM user";
     db.query(sql, function(err, result) {
@@ -379,14 +391,13 @@ app.get('/api/user', function(req, res) {
 
 
 
-
 app.get('/api/user/image/:filename', function(req, res){
     const filepath = path.join(__dirname, 'assets/user', req.params.filename); 
     res.sendFile(filepath);
 });
 
 
-// เรียกดูข้อมูลผู้ใช้
+// API View Profile
 app.get('/api/user/:id', async function (req, res) {
     const { id } = req.params;
     const sql = `
@@ -427,7 +438,7 @@ app.get('/api/user/:id', async function (req, res) {
 });
 
 
-
+// API View OtherProfile
 app.get('/api/profile/:id', async function (req, res) {
     const { id } = req.params;
     const sql = `
@@ -465,10 +476,7 @@ app.get('/api/profile/:id', async function (req, res) {
 });
 
 
-
-
-
-// update ข้อมูลผู้ใช้
+// API Update User
 app.post('/api/user/update/:id', async function(req, res) {
     const { id } = req.params;
     let { username, email, firstname, lastname, nickname, gender, interestGender, height, home, DateBirth, education, goal, preferences } = req.body;
@@ -572,8 +580,7 @@ app.post('/api/user/update/:id', async function(req, res) {
 });
 
 
-
-// API สำหรับอัปเดต preferences ของผู้ใช้
+// API Update Preference
 app.post('/api/user/update_preferences/:id', async function (req, res) {
     const { id } = req.params; // รับ userID จากพารามิเตอร์
     const { preferences } = req.body; // รับข้อมูล preferences เป็น comma-separated string
@@ -615,7 +622,7 @@ app.post('/api/user/update_preferences/:id', async function (req, res) {
 });
 
 
-
+// API All Update
 app.put('/api/user/update/:id', upload.single('image'), async function (req, res) {
     const { id } = req.params;
     let { username, email, firstname, lastname, nickname, gender, interestGender, height, home, DateBirth, education, goal, preferences } = req.body;
@@ -725,7 +732,7 @@ app.put('/api/user/update/:id', upload.single('image'), async function (req, res
 
 
 
-// API สำหรับการลบผู้ใช้
+// API Delete User
 app.delete('/api/user/:id', async function (req, res) {
     const { id } = req.params;
 
@@ -769,10 +776,12 @@ app.delete('/api/user/:id', async function (req, res) {
 });
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////// Show All User /////////////////////////////////////////////////////////////
 
 
-// ดึงข้อมูลผู้ใช้ทั้งหมดจากฐานข้อมูล
+
+// API Get User Home
 app.get('/api/users', (req, res) => {
     const query = `SELECT userID, nickname, imageFile FROM user`;
 
@@ -793,8 +802,12 @@ app.get('/api/users', (req, res) => {
 });
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+///////////////////////////////////////////////////////////// report /////////////////////////////////////////////////////////////
+
+
+
+// API Report
 app.post('/api/report', (req, res) => {
     const { reporterID, reportedID, reportType } = req.body;
 
@@ -828,10 +841,12 @@ app.post('/api/report', (req, res) => {
 });
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////// Like Dislike /////////////////////////////////////////////////////////////
 
 
-// Route สำหรับ Like
+
+// API Like User
 app.post('/api/like', (req, res) => {
     const { likerID, likedID } = req.body;
 
@@ -884,7 +899,7 @@ app.post('/api/like', (req, res) => {
 });
 
 
-// Route สำหรับ Dislike
+// API Dislike User
 app.post('/api/dislike', (req, res) => {
     const { dislikerID, dislikedID } = req.body;
 
@@ -948,6 +963,7 @@ app.post('/api/dislike', (req, res) => {
 });
 
 
+// API Check Match
 app.post('/api/check_match', (req, res) => {
     const { userID, likedID } = req.body;
 
@@ -1002,9 +1018,11 @@ app.post('/api/check_match', (req, res) => {
 
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////// Chat /////////////////////////////////////////////////////////////
 
 
+
+// API Get Match
 app.get('/api/matches/:userID', (req, res) => {
     const { userID } = req.params;
 
@@ -1052,6 +1070,7 @@ app.get('/api/matches/:userID', (req, res) => {
 });
 
 
+// API Chat 
 app.post('/api/chats/:matchID', (req, res) => {
     const { matchID } = req.params;
     const { senderID, message } = req.body;
@@ -1088,7 +1107,7 @@ app.post('/api/chats/:matchID', (req, res) => {
 });
 
 
-
+// API Show Chat
 app.get('/api/chats/:matchID', (req, res) => {
     const { matchID } = req.params;
 
@@ -1121,7 +1140,9 @@ app.get('/api/chats/:matchID', (req, res) => {
     });
 });
 
-// POST สำหรับส่งข้อความใหม่
+
+
+// API Chat New Message
 app.post('/api/chats/:matchID', (req, res) => {
     const { matchID } = req.params;
     const { senderID, message } = req.body; // รับ senderID และข้อความจาก body ของ request
@@ -1142,18 +1163,7 @@ app.post('/api/chats/:matchID', (req, res) => {
 });
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+// API Delete Chat
 app.post('/api/delete-chat', (req, res) => {
     const { userID, matchID } = req.body;
 
@@ -1176,6 +1186,7 @@ app.post('/api/delete-chat', (req, res) => {
 });
 
 
+// API Block User
 app.post('/api/block-chat', (req, res) => {
     const { userID, matchID, isBlocked } = req.body;
 
@@ -1214,6 +1225,8 @@ app.post('/api/block-chat', (req, res) => {
     });
 });
 
+
+// API Unblock User
 app.post('/api/unblock-chat', (req, res) => {
     const { userID, matchID } = req.body;
 
@@ -1243,7 +1256,9 @@ app.post('/api/unblock-chat', (req, res) => {
 });
 
 
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 
 app.listen(process.env.SERVER_PORT, () => {
