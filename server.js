@@ -473,6 +473,7 @@ app.delete('/api/user/:id', async function (req, res) {
         }
 
         // SQL Queries
+        const sqlGetUserImage = "SELECT imageFile FROM user WHERE userID = ?";
         const sqlDeleteUserReport = "DELETE FROM userreport WHERE reporterID = ? OR reportedID = ?";
         const sqlDeleteBlockedChats = "DELETE FROM blocked_chats WHERE matchID IN (SELECT matchID FROM matches WHERE user1ID = ? OR user2ID = ?)";
         const sqlDeleteDeletedChats = "DELETE FROM deleted_chats WHERE userID = ?";
@@ -482,6 +483,16 @@ app.delete('/api/user/:id', async function (req, res) {
         const sqlDeleteMatches = "DELETE FROM matches WHERE user1ID = ? OR user2ID = ?";
         const sqlDeleteUser = "DELETE FROM user WHERE userID = ?";
 
+        // ตรวจสอบและลบไฟล์ภาพของผู้ใช้
+        const [userImageResult] = await db.promise().query(sqlGetUserImage, [id]);
+        if (userImageResult.length > 0 && userImageResult[0].imageFile) {
+            const imagePath = path.join(__dirname, 'assets', 'user', userImageResult[0].imageFile);
+            fs.unlink(imagePath, (err) => {
+                if (err) console.error("Error deleting user image file:", err);
+                else console.log("User image file deleted successfully");
+            });
+        }
+
         // ลบข้อมูลที่เกี่ยวข้องกับผู้ใช้ในแต่ละตารางตามลำดับที่ถูกต้อง
         await db.promise().query(sqlDeleteUserReport, [id, id]);
         await db.promise().query(sqlDeleteBlockedChats, [id, id]); // Delete blocked_chats referencing matchID
@@ -490,7 +501,7 @@ app.delete('/api/user/:id', async function (req, res) {
         await db.promise().query(sqlDeleteLikes, [id, id]);
         await db.promise().query(sqlDeleteDislikes, [id, id]);
         await db.promise().query(sqlDeleteMatches, [id, id]);      // Delete matches after blocked_chats, chats, deleted_chats
-       
+
         // Delete user
         const [deleteResult] = await db.promise().query(sqlDeleteUser, [id]);
 
@@ -504,7 +515,6 @@ app.delete('/api/user/:id', async function (req, res) {
         res.status(500).send({ message: "เกิดข้อผิดพลาดในการลบข้อมูลผู้ใช้", status: false });
     }
 });
-
 
 
 
@@ -818,30 +828,52 @@ app.put('/api/employee/unban/:id', async function(req, res) {
     }
 });
 
-//Delete an employee
-app.delete('/api/employee/:id',
-    async function(req, res){
-        const empID = req.params.id;        
-        const token = req.headers["authorization"].replace("Bearer ", "");
-            
-        try{
-            let decode = jwt.verify(token, SECRET_KEY);               
-            if(decode.positionID != 1) {
-                return res.send( {'message':'คุณไม่ได้รับสิทธิ์ในการเข้าใช้งาน','status':false} );
-            }
-            
-            const sql = `DELETE FROM employee WHERE empID = ?`;
-            db.query(sql, [empID], (err, result) => {
-                if (err) throw err;
-                res.send({'message':'ลบข้อมูลพนักงานเรียบร้อยแล้ว','status':true});
-            });
+// Delete an employee
+app.delete('/api/employee/:id', async function(req, res) {
+    const empID = req.params.id;        
+    const token = req.headers["authorization"] ? req.headers["authorization"].replace("Bearer ", "") : null;
 
-        }catch(error){
-            res.send( {'message':'โทเคนไม่ถูกต้อง','status':false} );
-        }
-        
+    if (!token) {
+        return res.status(403).send({'message':'ไม่ได้ส่ง token มา','status':false});
     }
-);
+
+    try {
+        // Decode token to get positionID
+        const decode = jwt.verify(token, SECRET_KEY);
+
+        // ตรวจสอบสิทธิ์ว่าต้องเป็นตำแหน่งที่มี positionID = 1 เท่านั้น
+        if (decode.positionID != 1) {
+            return res.status(403).send({'message':'คุณไม่ได้รับสิทธิ์ในการเข้าใช้งาน','status':false});
+        }
+
+        // SQL Query เพื่อดึงข้อมูลภาพของพนักงาน
+        const sqlGetEmployeeImage = "SELECT imageFile FROM employee WHERE empID = ?";
+        
+        // ลบไฟล์ภาพของพนักงานหากมีอยู่
+        const [employeeImageResult] = await db.promise().query(sqlGetEmployeeImage, [empID]);
+        if (employeeImageResult.length > 0 && employeeImageResult[0].imageFile) {
+            const imagePath = path.join(__dirname, 'assets', 'employee', employeeImageResult[0].imageFile);
+            fs.unlink(imagePath, (err) => {
+                if (err) console.error("Error deleting employee image file:", err);
+                else console.log("Employee image file deleted successfully");
+            });
+        }
+
+        // SQL Query สำหรับลบข้อมูลพนักงาน
+        const sqlDeleteEmployee = `DELETE FROM employee WHERE empID = ?`;
+        db.query(sqlDeleteEmployee, [empID], (err, result) => {
+            if (err) {
+                console.error('Error deleting employee from database:', err);
+                return res.status(500).send({'message':'เกิดข้อผิดพลาดในการลบข้อมูลพนักงาน','status':false});
+            }
+            res.send({'message':'ลบข้อมูลพนักงานเรียบร้อยแล้ว','status':true});
+        });
+
+    } catch (error) {
+        console.error('Token verification error:', error);
+        res.status(403).send({'message':'โทเคนไม่ถูกต้อง','status':false});
+    }
+});
 
 ////////////////////////////////////////////////////////////////////////// Preference ////////////////////////////////////////////////////////////////////////////////////
 
