@@ -178,6 +178,7 @@ app.post('/api/logout', (req, res) => {
 });
 
 
+
 ////////////////////////////////////////////////////////////////////////// User ////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -385,20 +386,21 @@ app.put('/api/user/:id', async function(req, res) {
 });
 
 
-// ban user
+// Ban user
 app.put('/api/user/ban/:id', async function(req, res) {
     const userID = req.params.id;
     const token = req.headers["authorization"] ? req.headers["authorization"].replace("Bearer ", "") : null;
 
     if (!token) {
-        return res.send({'message': 'ไม่ได้ส่ง token มา', 'status': false});
+        return res.send({ 'message': 'ไม่ได้ส่ง token มา', 'status': false });
     }
 
     try {
         let decode = jwt.verify(token, SECRET_KEY);
-        // ตรวจสอบว่าเป็นผู้ดูแลระบบหรือไม่ (positionID = 1 หมายถึง admin)
-        if (decode.positionID != 1) {
-            return res.send({'message':'คุณไม่มีสิทธิ์ในการระงับผู้ใช้', 'status': false});
+        
+        // ตรวจสอบว่าเป็นผู้ดูแลระบบหรือพนักงาน (positionID = 1 หรือ 2)
+        if (decode.positionID !== 1 && decode.positionID !== 2) {
+            return res.send({ 'message': 'คุณไม่มีสิทธิ์ในการระงับผู้ใช้', 'status': false });
         }
 
         // อัปเดต isActive ในตาราง user ให้เป็น 0 (ระงับผู้ใช้)
@@ -406,13 +408,13 @@ app.put('/api/user/ban/:id', async function(req, res) {
         db.query(sql, [userID], (err, result) => {
             if (err) {
                 console.error(err);
-                return res.send({'message': 'เกิดข้อผิดพลาดในการระงับผู้ใช้', 'status': false});
+                return res.send({ 'message': 'เกิดข้อผิดพลาดในการระงับผู้ใช้', 'status': false });
             }
-            res.send({'message': 'ระงับผู้ใช้เรียบร้อยแล้ว', 'status': true});
+            res.send({ 'message': 'ระงับผู้ใช้เรียบร้อยแล้ว', 'status': true });
         });
 
     } catch (error) {
-        res.send({'message':'token ไม่ถูกต้อง', 'status': false});
+        res.send({ 'message': 'token ไม่ถูกต้อง', 'status': false });
     }
 });
 
@@ -422,114 +424,85 @@ app.put('/api/user/unban/:id', async function(req, res) {
     const token = req.headers["authorization"] ? req.headers["authorization"].replace("Bearer ", "") : null;
 
     if (!token) {
-        return res.send({'message': 'ไม่ได้ส่ง token มา', 'status': false});
+        return res.send({ 'message': 'ไม่ได้ส่ง token มา', 'status': false });
     }
 
     try {
         let decode = jwt.verify(token, SECRET_KEY);
-        // ตรวจสอบว่าเป็นผู้ดูแลระบบหรือไม่ (positionID = 1 หมายถึง admin)
-        if (decode.positionID != 1) {
-            return res.send({'message':'คุณไม่มีสิทธิ์ในการปลดแบนผู้ใช้', 'status': false});
+
+        // ตรวจสอบว่าเป็นผู้ดูแลระบบหรือพนักงาน (positionID = 1 หรือ 2)
+        if (decode.positionID !== 1 && decode.positionID !== 2) {
+            return res.send({ 'message': 'คุณไม่มีสิทธิ์ในการปลดแบนผู้ใช้', 'status': false });
         }
 
-        // อัปเดต isActive ในตาราง user ให้เป็น 1 และเคลีย loginAttempt (ปลดแบน)
+        // อัปเดต isActive ในตาราง user ให้เป็น 1 และเคลียร์ loginAttempt (ปลดแบน)
         let sql = "UPDATE user SET isActive = 1, loginAttempt = 0 WHERE userID = ?";
         db.query(sql, [userID], (err, result) => {
             if (err) {
                 console.error(err);
-                return res.send({'message': 'เกิดข้อผิดพลาดในการปลดแบนผู้ใช้', 'status': false});
+                return res.send({ 'message': 'เกิดข้อผิดพลาดในการปลดแบนผู้ใช้', 'status': false });
             }
-            res.send({'message': 'ปลดแบนผู้ใช้เรียบร้อยแล้ว', 'status': true});
+            res.send({ 'message': 'ปลดแบนผู้ใช้เรียบร้อยแล้ว', 'status': true });
         });
 
     } catch (error) {
-        res.send({'message':'token ไม่ถูกต้อง', 'status': false});
+        res.send({ 'message': 'token ไม่ถูกต้อง', 'status': false });
     }
 });
 
-//Delete a user
-app.delete('/api/user/:id', async function(req, res) {
-    const userID = req.params.id;
-    const token = req.headers["authorization"].replace("Bearer ", "");
+
+// API Delete User
+app.delete('/api/user/:id', async function (req, res) {
+    const { id } = req.params;
+    const token = req.headers["authorization"] ? req.headers["authorization"].replace("Bearer ", "") : null;
+
+    if (!token) {
+        return res.status(403).send({ message: "ไม่ได้ส่ง token มา", status: false });
+    }
 
     try {
-        let decode = jwt.verify(token, SECRET_KEY);
-        
-        // ตรวจสอบว่าเป็น admin หรือไม่ (positionID = 1 เท่านั้น)
-        if (decode.positionID != 1) {
-            return res.send({'message': 'คุณไม่ได้รับสิทธิ์ในการลบผู้ใช้', 'status': false});
+        // Decode token to get positionID
+        const decode = jwt.verify(token, SECRET_KEY);
+
+        // ตรวจสอบว่าเป็น employee ที่มี positionID เท่ากับ 1 เท่านั้น
+        if (decode.positionID !== 1) {
+            return res.status(403).send({ message: "คุณไม่ได้รับสิทธิ์ในการลบผู้ใช้", status: false });
         }
 
-        // Begin transaction to ensure consistency
-        db.beginTransaction((err) => {
-            if (err) throw err;
+        // SQL Queries
+        const sqlDeleteUserReport = "DELETE FROM userreport WHERE reporterID = ? OR reportedID = ?";
+        const sqlDeleteBlockedChats = "DELETE FROM blocked_chats WHERE matchID IN (SELECT matchID FROM matches WHERE user1ID = ? OR user2ID = ?)";
+        const sqlDeleteDeletedChats = "DELETE FROM deleted_chats WHERE userID = ?";
+        const sqlDeleteChats = "DELETE FROM chats WHERE matchID IN (SELECT matchID FROM matches WHERE user1ID = ? OR user2ID = ?)";
+        const sqlDeleteLikes = "DELETE FROM userlike WHERE likerID = ? OR likedID = ?";
+        const sqlDeleteDislikes = "DELETE FROM userdislike WHERE dislikerID = ? OR dislikedID = ?";
+        const sqlDeleteMatches = "DELETE FROM matches WHERE user1ID = ? OR user2ID = ?";
+        const sqlDeleteUser = "DELETE FROM user WHERE userID = ?";
 
-            // ลบข้อมูลในตาราง chats ที่เกี่ยวข้องกับ matchID
-            const deleteChatsSQL = `DELETE FROM chats WHERE matchID IN (SELECT matchID FROM matches WHERE user1ID = ? OR user2ID = ?)`;
-            db.query(deleteChatsSQL, [userID, userID], (err, result) => {
-                if (err) {
-                    return db.rollback(() => {
-                        throw err;
-                    });
-                }
+        // ลบข้อมูลที่เกี่ยวข้องกับผู้ใช้ในแต่ละตารางตามลำดับที่ถูกต้อง
+        await db.promise().query(sqlDeleteUserReport, [id, id]);
+        await db.promise().query(sqlDeleteBlockedChats, [id, id]); // Delete blocked_chats referencing matchID
+        await db.promise().query(sqlDeleteChats, [id, id]);        // Delete chats referencing matchID
+        await db.promise().query(sqlDeleteDeletedChats, [id]);     // Delete deleted_chats
+        await db.promise().query(sqlDeleteLikes, [id, id]);
+        await db.promise().query(sqlDeleteDislikes, [id, id]);
+        await db.promise().query(sqlDeleteMatches, [id, id]);      // Delete matches after blocked_chats, chats, deleted_chats
+       
+        // Delete user
+        const [deleteResult] = await db.promise().query(sqlDeleteUser, [id]);
 
-                // ลบข้อมูลในตาราง matches
-                const deleteMatchesSQL = `DELETE FROM matches WHERE user1ID = ? OR user2ID = ?`;
-                db.query(deleteMatchesSQL, [userID, userID], (err, result) => {
-                    if (err) {
-                        return db.rollback(() => {
-                            throw err;
-                        });
-                    }
-
-                    // ลบข้อมูลในตาราง userlike ที่เกี่ยวข้อง
-                    const deleteLikesSQL = `DELETE FROM userlike WHERE likedID = ? OR likerID = ?`;
-                    db.query(deleteLikesSQL, [userID, userID], (err, result) => {
-                        if (err) {
-                            return db.rollback(() => {
-                                throw err;
-                            });
-                        }
-
-                        // ลบข้อมูลในตาราง userreport ที่เกี่ยวข้อง
-                        const deleteReportsSQL = `DELETE FROM userreport WHERE reportedID = ? OR reporterID = ?`;
-                        db.query(deleteReportsSQL, [userID, userID], (err, result) => {
-                            if (err) {
-                                return db.rollback(() => {
-                                    throw err;
-                                });
-                            }
-
-                            // สุดท้ายลบผู้ใช้จากตาราง user
-                            const deleteUserSQL = `DELETE FROM user WHERE userID = ?`;
-                            db.query(deleteUserSQL, [userID], (err, result) => {
-                                if (err) {
-                                    return db.rollback(() => {
-                                        throw err;
-                                    });
-                                }
-
-                                // Commit การทำงาน
-                                db.commit((err) => {
-                                    if (err) {
-                                        return db.rollback(() => {
-                                            throw err;
-                                        });
-                                    }
-
-                                    res.send({'message': 'ลบข้อมูลลูกค้าเรียบร้อยแล้ว', 'status': true});
-                                });
-                            });
-                        });
-                    });
-                });
-            });
-        });
-
-    } catch (error) {
-        res.send({'message': 'โทเคนไม่ถูกต้อง', 'status': false});
+        if (deleteResult.affectedRows > 0) {
+            res.send({ message: "ลบข้อมูลผู้ใช้สำเร็จ", status: true });
+        } else {
+            res.status(404).send({ message: "ไม่พบผู้ใช้ที่ต้องการลบ", status: false });
+        }
+    } catch (err) {
+        console.error('Database delete error:', err);
+        res.status(500).send({ message: "เกิดข้อผิดพลาดในการลบข้อมูลผู้ใช้", status: false });
     }
 });
+
+
 
 
 ////////////////////////////////////////////////////////////////////////// employee ////////////////////////////////////////////////////////////////////////////////////
@@ -689,82 +662,95 @@ app.put('/api/employee/:id', async function(req, res) {
     const token = req.headers["authorization"].replace("Bearer ", "");
 
     try {
+        // Decode token เพื่อดึงข้อมูลพนักงานที่ทำการร้องขอ
         let decode = jwt.verify(token, SECRET_KEY);
 
-        // ตรวจสอบสิทธิ์ admin หรือเป็นพนักงานที่แก้ไขข้อมูลตนเอง
-        if (decode.positionID != 1 && decode.empID != empID) {
-            return res.status(403).json({ message: 'คุณไม่มีสิทธิ์ในการแก้ไขข้อมูลพนักงานคนอื่น', status: false });
+        // Query ตรวจสอบข้อมูลตำแหน่งของพนักงานที่กำลังถูกแก้ไขข้อมูล
+        const sqlGetEmployeePosition = 'SELECT positionID FROM employee WHERE empID = ?';
+        const [employeeData] = await query(sqlGetEmployeePosition, [empID]);
+
+        if (!employeeData) {
+            return res.status(404).json({ message: 'ไม่พบพนักงานที่ต้องการแก้ไข', status: false });
         }
 
-        const { password, username, firstname, lastname, email, gender, phonenumber } = req.body;
-        let profileImage = null;
+        const employeePositionID = employeeData.positionID;
 
-        // ดึงข้อมูลพนักงานปัจจุบันเพื่อเช็คว่ามีรูปภาพเดิมอยู่หรือไม่
-        let sqlSelect = 'SELECT imageFile FROM employee WHERE empID = ?';
-        const [employee] = await query(sqlSelect, [empID]);
+        // ตรวจสอบสิทธิ์
+        if (decode.positionID === 1 || (decode.positionID === 2 && decode.empID === empID) || (decode.positionID === 2 && employeePositionID === 2)) {
+            // พนักงาน positionID 1 สามารถแก้ไขได้ทั้งหมด
+            // พนักงาน positionID 2 แก้ไขข้อมูลตนเองได้และพนักงานคนอื่นๆ ที่มี positionID 2
+            const { password, username, firstname, lastname, email, gender, phonenumber } = req.body;
+            let profileImage = null;
 
-        // ตรวจสอบไฟล์รูปภาพใหม่
-        if (req.files && req.files.profileImage) {
-            const image = req.files.profileImage;
-            profileImage = Date.now() + '-' + image.name;
-            const uploadPath = path.join(__dirname, 'assets/employee', profileImage);
+            // ดึงข้อมูลพนักงานปัจจุบันเพื่อเช็คว่ามีรูปภาพเดิมอยู่หรือไม่
+            let sqlSelect = 'SELECT imageFile FROM employee WHERE empID = ?';
+            const [employee] = await query(sqlSelect, [empID]);
 
-            // ลบรูปภาพเก่าหากมี
-            if (employee.imageFile) {
-                const oldImagePath = path.join(__dirname, 'assets/employee', employee.imageFile);
-                fs.access(oldImagePath, fs.constants.F_OK, (err) => {
-                    if (!err) {
-                        // ลบไฟล์เก่า
-                        fs.unlink(oldImagePath, (err) => {
-                            if (err) console.error('Error deleting old image:', err);
-                        });
+            // ตรวจสอบไฟล์รูปภาพใหม่
+            if (req.files && req.files.profileImage) {
+                const image = req.files.profileImage;
+                profileImage = Date.now() + '-' + image.name;
+                const uploadPath = path.join(__dirname, 'assets/employee', profileImage);
+
+                // ลบรูปภาพเก่าหากมี
+                if (employee.imageFile) {
+                    const oldImagePath = path.join(__dirname, 'assets/employee', employee.imageFile);
+                    fs.access(oldImagePath, fs.constants.F_OK, (err) => {
+                        if (!err) {
+                            // ลบไฟล์เก่า
+                            fs.unlink(oldImagePath, (err) => {
+                                if (err) console.error('Error deleting old image:', err);
+                            });
+                        }
+                    });
+                }
+
+                // บันทึกไฟล์รูปภาพใหม่
+                image.mv(uploadPath, (err) => {
+                    if (err) {
+                        return res.status(500).send({ 'message': 'เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ', 'status': false });
                     }
                 });
             }
 
-            // บันทึกไฟล์รูปภาพใหม่
-            image.mv(uploadPath, (err) => {
-                if (err) {
-                    return res.status(500).send({ 'message': 'เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ', 'status': false });
-                }
+            // ตรวจสอบไม่ให้ส่งค่า null ไปยังฐานข้อมูล
+            let sql = 'UPDATE employee SET username = ?, firstname = ?, lastname = ?, email = ?, gender = ?, phonenumber = ?';
+            let params = [
+                username, 
+                firstname || '',   // ตรวจสอบไม่ให้เป็น null
+                lastname || '',    
+                email, 
+                gender, 
+                phonenumber || ''  
+            ];
+
+            if (profileImage) {
+                sql += ', imageFile = ?'; // อัปเดตไฟล์รูปภาพใหม่
+                params.push(profileImage);
+            }
+
+            if (password) {
+                const salt = await bcrypt.genSalt(10);
+                const password_hash = await bcrypt.hash(password, salt);
+                sql += ', password = ?';
+                params.push(password_hash);
+            }
+
+            sql += ' WHERE empID = ?';
+            params.push(empID);
+
+            db.query(sql, params, (err, result) => {
+                if (err) throw err;
+                res.send({ message: 'แก้ไขข้อมูลพนักงานเรียบร้อยแล้ว', status: true });
             });
+        } else {
+            res.status(403).json({ message: 'คุณไม่มีสิทธิ์ในการแก้ไขข้อมูลพนักงานคนนี้', status: false });
         }
-
-        // ตรวจสอบไม่ให้ส่งค่า null ไปยังฐานข้อมูล
-        let sql = 'UPDATE employee SET username = ?, firstname = ?, lastname = ?, email = ?, gender = ?, phonenumber = ?';
-        let params = [
-            username, 
-            firstname || '',   // ตรวจสอบไม่ให้เป็น null
-            lastname || '',    
-            email, 
-            gender, 
-            phonenumber || ''  
-        ];
-
-        if (profileImage) {
-            sql += ', imageFile = ?'; // อัปเดตไฟล์รูปภาพใหม่
-            params.push(profileImage);
-        }
-
-        if (password) {
-            const salt = await bcrypt.genSalt(10);
-            const password_hash = await bcrypt.hash(password, salt);
-            sql += ', password = ?';
-            params.push(password_hash);
-        }
-
-        sql += ' WHERE empID = ?';
-        params.push(empID);
-
-        db.query(sql, params, (err, result) => {
-            if (err) throw err;
-            res.send({ message: 'แก้ไขข้อมูลพนักงานเรียบร้อยแล้ว', status: true });
-        });
-
     } catch (error) {
         res.status(401).json({ message: 'โทเคนไม่ถูกต้อง', status: false });
     }
 });
+
 
 
 // ban employee

@@ -732,7 +732,6 @@ app.put('/api/user/update/:id', upload.single('image'), async function (req, res
 
 
 // API Delete User
-// API Delete User
 app.delete('/api/user/:id', async function (req, res) {
     const { id } = req.params;
 

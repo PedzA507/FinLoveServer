@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Button, Container, Paper, Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Avatar, ButtonGroup } from '@mui/material';
+import { Button, Container, Paper, Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Avatar, ButtonGroup, Snackbar, Alert } from '@mui/material';
 import { useNavigate } from "react-router-dom";
 import axios from 'axios';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -9,6 +9,7 @@ const url = process.env.REACT_APP_BASE_URL;
 
 export default function Index() {
   const [users, setUsers] = useState([]);
+  const [notification, setNotification] = useState({ open: false, message: '', severity: 'info' });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -17,9 +18,7 @@ export default function Index() {
 
   const usersGet = () => {
     axios.get(`${url}/user`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
+      headers: { 'Authorization': `Bearer ${token}` },
     })
     .then((response) => {
       setUsers(response.data);  // Set users data
@@ -29,13 +28,21 @@ export default function Index() {
     });
   };
 
+  const showNotification = (message, severity) => {
+    setNotification({ open: true, message, severity });
+  };
+
+  const handleCloseNotification = () => {
+    setNotification({ ...notification, open: false });
+  };
+
   const ViewUser = (id) => {
-    window.location = `/admin/user/view/${id}`;
-  }
+    navigate(`/admin/user/view/${id}`);
+  };
 
   const UpdateUser = (id) => {
-    window.location = `/admin/user/update/${id}`;
-  }
+    navigate(`/admin/user/update/${id}`);
+  };
 
   const UserDelete = (id) => {
     axios.delete(`${url}/user/${id}`, {
@@ -46,60 +53,54 @@ export default function Index() {
       },
     })
     .then((response) => {
-      if (response.data.status === true) {
-        alert(response.data.message);
+      if (response.data.status) {
+        showNotification(response.data.message, 'success');
         usersGet();  // Refresh users list after deletion
       } else {
-        alert('Failed to delete user');
+        showNotification('Failed to delete user', 'error');
       }
     })
     .catch((error) => {
+      const message = error.response?.data?.message || 'An error occurred while deleting user';
+      showNotification(message, 'error');
       console.error('There was an error!', error);
     });
   };
 
   const UserBan = (id) => {
     axios.put(`${url}/user/ban/${id}`, null, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
+      headers: { 'Authorization': `Bearer ${token}` },
     })
     .then((response) => {
-      if (response.data.status === true) {
-        alert(response.data.message);
-        setUsers(prevUsers =>
-          prevUsers.map(user =>
-            user.userID === id ? { ...user, isActive: 0 } : user
-          )
-        );
+      if (response.data.status) {
+        showNotification(response.data.message, 'success');
+        setUsers(prevUsers => prevUsers.map(user => user.userID === id ? { ...user, isActive: 0 } : user));
       } else {
-        alert('Failed to suspend user');
+        showNotification('Failed to suspend user', 'error');
       }
     })
     .catch((error) => {
+      const message = error.response?.data?.message || 'An error occurred while suspending user';
+      showNotification(message, 'error');
       console.error('Error suspending user:', error);
     });
   };
 
   const UserUnban = (id) => {
     axios.put(`${url}/user/unban/${id}`, null, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
+      headers: { 'Authorization': `Bearer ${token}` },
     })
     .then((response) => {
-      if (response.data.status === true) {
-        alert(response.data.message);
-        setUsers(prevUsers =>
-          prevUsers.map(user =>
-            user.userID === id ? { ...user, isActive: 1 } : user
-          )
-        );
+      if (response.data.status) {
+        showNotification(response.data.message, 'success');
+        setUsers(prevUsers => prevUsers.map(user => user.userID === id ? { ...user, isActive: 1 } : user));
       } else {
-        alert('Failed to unban user');
+        showNotification('Failed to unban user', 'error');
       }
     })
     .catch((error) => {
+      const message = error.response?.data?.message || 'An error occurred while unbanning user';
+      showNotification(message, 'error');
       console.error('Error unbanning user:', error);
     });
   };
@@ -135,7 +136,7 @@ export default function Index() {
                     <TableCell align="right">{user.userID}</TableCell>
                     <TableCell align="center">
                       <Box display="flex" justifyContent="center">
-                        <Avatar src={url + '/user/image/' + user.imageFile} sx={{ width: 56, height: 56 }} />
+                        <Avatar src={`${url}/user/image/${user.imageFile}`} sx={{ width: 56, height: 56 }} />
                       </Box>
                     </TableCell>
                     <TableCell align="left">{user.firstname}</TableCell>
@@ -223,6 +224,15 @@ export default function Index() {
             </Table>
           </TableContainer>
         </Paper>
+        <Snackbar
+          open={notification.open}
+          autoHideDuration={6000}
+          onClose={handleCloseNotification}
+        >
+          <Alert onClose={handleCloseNotification} severity={notification.severity}>
+            {notification.message}
+          </Alert>
+        </Snackbar>
       </Container>
     </Box>
   );

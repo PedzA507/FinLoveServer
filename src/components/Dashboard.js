@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { Typography, Avatar, Button, ButtonGroup, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Container, Grid, Card, CardContent, Drawer, List, ListItem, ListItemIcon, ListItemText } from '@mui/material';
+import { Typography, Avatar, Button, ButtonGroup, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Container, Grid, Card, CardContent, Drawer, List, ListItem, ListItemIcon, ListItemText, Snackbar, Alert } from '@mui/material';
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, LineChart, Line, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { Home as HomeIcon, People as PeopleIcon, Settings as SettingsIcon } from '@mui/icons-material';
+import { Home as HomeIcon, People as PeopleIcon, Settings as SettingsIcon, ExitToApp as ExitToAppIcon } from '@mui/icons-material';
 
 const url = process.env.REACT_APP_BASE_URL;
 const token = localStorage.getItem('token');
 
 // Sample data for charts
-const data = [
+const newUserStats = [
   { name: 'Jan', sessions: 28 },
   { name: 'Feb', sessions: 53 },
   { name: 'Mar', sessions: 51 },
@@ -17,97 +17,102 @@ const data = [
   { name: 'May', sessions: 58 },
 ];
 
-const pageData = [
-  { name: 'Jan', views: 90 },
-  { name: 'Feb', views: 70 },
-  { name: 'Mar', views: 80 },
-  { name: 'Apr', views: 85 },
-  { name: 'May', views: 95 },
-  { name: 'Jun', views: 70 },
+const matchStats = [
+  { name: 'Jan', matches: 90 },
+  { name: 'Feb', matches: 70 },
+  { name: 'Mar', matches: 80 },
+  { name: 'Apr', matches: 85 },
+  { name: 'May', matches: 95 },
+  { name: 'Jun', matches: 70 },
 ];
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [users, setUsers] = useState([]); // กำหนดค่าเริ่มต้นเป็น array เปล่า
+  const [users, setUsers] = useState([]);
+  const [notification, setNotification] = useState({ open: false, message: '', severity: 'info' });
 
   useEffect(() => {
-    // ดึงข้อมูลผู้ใช้ที่ถูก report จาก API
     axios.get(`${url}/userreport`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then((response) => {
       const data = response.data;
-      if (Array.isArray(data)) {  // ตรวจสอบว่าข้อมูลที่ได้กลับมาเป็น array หรือไม่
-        setUsers(data); // ตั้งค่าผู้ใช้จากการตอบสนองของ API
+      if (Array.isArray(data)) {
+        setUsers(data);
       } else {
-        setUsers([]);  // ถ้าข้อมูลไม่ใช่ array ให้ตั้งเป็น array เปล่า
+        setUsers([]);
       }
     })
     .catch((error) => {
       console.error('Error fetching users:', error);
-      setUsers([]);  // ตั้งค่าเป็น array เปล่าเมื่อเกิดข้อผิดพลาด
+      setUsers([]);
     });
   }, []);
 
+  const showNotification = (message, severity) => {
+    setNotification({ open: true, message, severity });
+  };
+
+  const handleCloseNotification = () => {
+    setNotification({ ...notification, open: false });
+  };
+
   const handleBanUser = (userID) => {
     axios.put(`${url}/user/ban/${userID}`, null, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers: { 'Authorization': `Bearer ${token}` }
     })
     .then((response) => {
       if (response.data.status === true) {
-        alert(response.data.message);
+        showNotification(response.data.message, 'success');
         setUsers((prevUsers) => prevUsers.map(user => user.userID === userID ? { ...user, isActive: 0 } : user));
       } else {
-        alert('Failed to suspend user');
+        showNotification('Failed to suspend user', 'error');
       }
     })
     .catch((error) => {
+      showNotification('Error suspending user', 'error');
       console.error('Error suspending user:', error);
     });
   };
 
   const handleUnbanUser = (userID) => {
     axios.put(`${url}/user/unban/${userID}`, null, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers: { 'Authorization': `Bearer ${token}` }
     })
     .then((response) => {
       if (response.data.status === true) {
-        alert(response.data.message);
+        showNotification(response.data.message, 'success');
         setUsers((prevUsers) => prevUsers.map(user => user.userID === userID ? { ...user, isActive: 1 } : user));
       } else {
-        alert('Failed to unban user');
+        showNotification('Failed to unban user', 'error');
       }
     })
     .catch((error) => {
+      showNotification('Error unbanning user', 'error');
       console.error('Error unbanning user:', error);
     });
   };
 
-  // ฟังก์ชันสำหรับ logout
   const handleLogout = () => {
     axios.post(`${url}/logout`, {}, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then((response) => {
       if (response.data.status === true) {
-        // ลบ token ออกจาก localStorage
+        // ลบ token และ positionID ออกจาก localStorage
         localStorage.removeItem('token');
-        
-        // นำทางไปยังหน้า login
+        localStorage.removeItem('positionID');
+
+        // แสดงแจ้งเตือนการ logout สำเร็จ
+        showNotification(response.data.message, 'success');
+
+        // นำทางไปยังหน้า login และรีเฟรชหน้า
         navigate('/signinuser');
-        
-        // ป้องกันการย้อนกลับไปยังหน้า dashboard
-        window.history.pushState(null, '', '/signinuser');
-        window.addEventListener('popstate', () => {
-          window.history.pushState(null, '', '/signinuser');
-        });
+        window.location.reload(); // รีเฟรชหน้าเพื่อเคลียร์ข้อมูลสิทธิ์ที่ค้างอยู่
       }
     })
     .catch((error) => {
+      showNotification('Error during logout', 'error');
       console.error('Error during logout:', error);
     });
   };
@@ -118,7 +123,7 @@ export default function Dashboard() {
     { text: 'จัดการข้อมูลพนักงาน', action: () => navigate('/admin/employee'), icon: <SettingsIcon /> },
     { text: 'เพิ่มผู้ดูแล', action: () => navigate('/addEmployee'), icon: <SettingsIcon /> },
     { text: 'เพิ่มความชอบ', action: () => navigate('/managepreferences'), icon: <SettingsIcon /> },
-    { text: 'ออกจากระบบ', action: handleLogout, icon: <HomeIcon /> }
+    { text: 'ออกจากระบบ', action: handleLogout, icon: <ExitToAppIcon /> }
   ];
 
   return (
@@ -140,7 +145,7 @@ export default function Dashboard() {
       >
         <Box sx={{ overflow: 'auto' }}>
           <List>
-            {menuItems.map((item, index) => (
+            {menuItems.map((item) => (
               <ListItem
                 button
                 key={item.text}
@@ -169,26 +174,16 @@ export default function Dashboard() {
       </Drawer>
 
       {/* Main Content */}
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          padding: 3,
-          backgroundColor: '#F8E9F0',
-          minHeight: '100vh',
-        }}
-      >
+      <Box component="main" sx={{ flexGrow: 1, padding: 3, backgroundColor: '#F8E9F0', minHeight: '100vh' }}>
         <Container maxWidth="lg" sx={{ mt: 4 }}>
-          {/* Charts */}
+          {/* Charts Section */}
           <Grid container spacing={4}>
             <Grid item xs={12} md={6}>
               <Card sx={{ backgroundColor: '#fff', borderRadius: '10px', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)', border: '2px solid black' }}>
                 <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    ผู้ใช้งานใหม่
-                  </Typography>
+                  <Typography variant="h6" gutterBottom>ผู้ใช้งานใหม่</Typography>
                   <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={data}>
+                    <LineChart data={newUserStats}>
                       <CartesianGrid stroke="#ccc" />
                       <XAxis dataKey="name" stroke="#000" />
                       <YAxis stroke="#000" />
@@ -203,16 +198,14 @@ export default function Dashboard() {
             <Grid item xs={12} md={6}>
               <Card sx={{ backgroundColor: '#fff', borderRadius: '10px', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)', border: '2px solid black' }}>
                 <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    จำนวนการแมท
-                  </Typography>
+                  <Typography variant="h6" gutterBottom>จำนวนการแมท</Typography>
                   <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={pageData}>
+                    <BarChart data={matchStats}>
                       <CartesianGrid stroke="#ccc" />
                       <XAxis dataKey="name" stroke="#000" />
                       <YAxis stroke="#000" />
                       <Tooltip />
-                      <Bar dataKey="views" fill="#8884d8" />
+                      <Bar dataKey="matches" fill="#8884d8" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -220,81 +213,66 @@ export default function Dashboard() {
             </Grid>
           </Grid>
 
-          {/* User Table */}
+          {/* User Report Table */}
           <Box sx={{ mt: 4 }}>
-            <Typography variant="h6" gutterBottom>
-              ผู้ใช้ถูกระงับใหม่
-            </Typography>
+            <Typography variant="h6" gutterBottom>ผู้ใช้ถูกระงับใหม่</Typography>
             <TableContainer component={Paper} sx={{ backgroundColor: '#fff', borderRadius: '10px', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)', border: '2px solid black' }}>
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell align="center" sx={{ padding: '16px', width: 100 }}>รหัส</TableCell>
-                    <TableCell align="center" sx={{ padding: '16px', width: 100 }}>รูป</TableCell> {/* ปรับให้เว้นระยะและสอดคล้องกับขนาดของรูปภาพ */} 
-                    <TableCell align="left" sx={{ padding: '16px' }}>ชื่อผู้ใช้</TableCell>
-                    <TableCell align="left" sx={{ padding: '16px' }}>เหตุผล</TableCell>
-                    <TableCell align="center" sx={{ padding: '16px' }}>จัดการข้อมูล</TableCell>
+                    <TableCell align="center">รหัส</TableCell>
+                    <TableCell align="center">รูป</TableCell>
+                    <TableCell align="left">ชื่อผู้ใช้</TableCell>
+                    <TableCell align="left">เหตุผล</TableCell>
+                    <TableCell align="center">จัดการข้อมูล</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {Array.isArray(users) && users.map((user) => (  // ตรวจสอบว่า users เป็น array ก่อนใช้ .map()
+                  {users.map((user) => (
                     <TableRow key={user.userID}>
-                      <TableCell align="center" sx={{ padding: '16px' }}>{user.userID}</TableCell>
-                      <TableCell align="center" sx={{ padding: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <Avatar 
-                          src={`${url}/user/image/${user.imageFile}`} 
-                          alt={user.username} 
-                          sx={{ width: 50, height: 50 }} // ขนาดรูปภาพคงที่
-                        />
+                      <TableCell align="center">{user.userID}</TableCell>
+                      <TableCell align="center">
+                        <Avatar src={`${url}/user/image/${user.imageFile}`} alt={user.username} sx={{ width: 50, height: 50 }} />
                       </TableCell>
-                      <TableCell align="left" sx={{ padding: '16px' }}>{user.username}</TableCell>
-                      <TableCell align="left" sx={{ padding: '16px' }}>{user.reportType || 'ไม่ระบุเหตุผล'}</TableCell>
-                      <TableCell align="center" sx={{ padding: '16px' }}>
-  <ButtonGroup color="primary" aria-label="outlined primary button group">
-    {/* ปุ่มระงับผู้ใช้ - สีแดง */}
-    <Button
-      variant="contained"
-      sx={{
-        borderRadius: '8px',
-        color: '#fff',  // สีตัวอักษรเป็นสีขาว
-        borderColor: '#c62828', // สีขอบแดงเข้ม
-        backgroundColor: user.isActive === 0 ? '#e57373' : '#c62828', // สีแดงอ่อนเมื่อถูกระงับ, สีแดงเข้มเมื่อพร้อมใช้งาน
-        '&:hover': {
-          backgroundColor: '#b71c1c', // สีแดงเข้มขึ้นเมื่อ hover
-        },
-      }}
-      onClick={() => handleBanUser(user.userID)}
-      disabled={user.isActive === 0} // ปิดการใช้งานปุ่มระงับถ้าผู้ใช้ถูกระงับแล้ว
-    >
-      ระงับผู้ใช้
-    </Button>
-
-    {/* ปุ่มปลดแบน - สีน้ำเงิน */}
-    <Button
-      variant="contained"
-      sx={{
-        borderRadius: '8px',
-        color: '#fff',  // สีตัวอักษรเป็นสีขาว
-        borderColor: '#1565c0', // สีขอบน้ำเงินเข้ม
-        backgroundColor: user.isActive === 1 ? '#64b5f6' : '#1565c0', // สีน้ำเงินอ่อนเมื่อปลดแบน, สีน้ำเงินเข้มเมื่อพร้อมใช้งาน
-        '&:hover': {
-          backgroundColor: '#0d47a1', // สีน้ำเงินเข้มขึ้นเมื่อ hover
-        },
-      }}
-      onClick={() => handleUnbanUser(user.userID)}
-      disabled={user.isActive === 1} // ปิดการใช้งานปุ่มปลดแบนถ้าผู้ใช้ยังไม่ถูกระงับ
-    >
-      ปลดแบน
-    </Button>
-  </ButtonGroup>
-</TableCell>
-
+                      <TableCell align="left">{user.username}</TableCell>
+                      <TableCell align="left">{user.reportType || 'ไม่ระบุเหตุผล'}</TableCell>
+                      <TableCell align="center">
+                        <ButtonGroup>
+                          <Button
+                            variant="contained"
+                            sx={{ backgroundColor: '#e57373', color: '#fff' }}
+                            onClick={() => handleBanUser(user.userID)}
+                            disabled={user.isActive === 0}
+                          >
+                            ระงับผู้ใช้
+                          </Button>
+                          <Button
+                            variant="contained"
+                            sx={{ backgroundColor: '#64b5f6', color: '#fff' }}
+                            onClick={() => handleUnbanUser(user.userID)}
+                            disabled={user.isActive === 1}
+                          >
+                            ปลดแบน
+                          </Button>
+                        </ButtonGroup>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </TableContainer>
           </Box>
+
+          {/* Logout Notification Snackbar */}
+          <Snackbar
+            open={notification.open}
+            autoHideDuration={6000}
+            onClose={handleCloseNotification}
+          >
+            <Alert onClose={handleCloseNotification} severity={notification.severity}>
+              {notification.message}
+            </Alert>
+          </Snackbar>
         </Container>
       </Box>
     </Box>
