@@ -1,4 +1,4 @@
-import { React, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Avatar from '@mui/material/Avatar';
 import Grid from '@mui/material/Grid';
@@ -115,7 +115,7 @@ export default function View() {
                 <Box sx={{ maxHeight: 200, overflow: 'auto', backgroundColor: '#f9f9f9', padding: 2, borderRadius: '5px' }}>
                   {reportHistory.map((report, index) => (
                     <Typography key={index} variant="body1" sx={{ mb: '10px', color: '#333' }}>
-                      {report.reportType}
+                      รายงานโดย ID: {report.reporterID} - {report.reportType}
                     </Typography>
                   ))}
                 </Box>

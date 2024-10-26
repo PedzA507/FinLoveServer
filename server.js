@@ -234,9 +234,11 @@ app.get('/api/userreport', async function(req, res){
     }
 });
 
+
+
 // Show a user Profile
 app.get('/api/profile/:id', async function(req, res) {
-    const userID = req.params.id;  // ดึง userID ที่ถูกคลิกเข้ามาดู
+    const userID = req.params.id;  // User ID of the profile being viewed
     const token = req.headers["authorization"] ? req.headers["authorization"].replace("Bearer ", "") : null;
 
     if (!token) {
@@ -246,12 +248,12 @@ app.get('/api/profile/:id', async function(req, res) {
     try {
         let decode = jwt.verify(token, SECRET_KEY);
 
-        // ตรวจสอบว่าสิทธิ์เป็น admin (positionID = 1) หรือไม่
+        // Check if the user has admin or appropriate access rights
         if (decode.positionID != 1 && decode.positionID != 2) {
             return res.send({'message':'คุณไม่มีสิทธิ์ในการเข้าถึง', 'status': false});
         }
 
-        // ดึงข้อมูลของ user ตาม userID ที่ต้องการดู
+        // Fetch user details
         let userSQL = `
             SELECT u.userID, u.username, u.firstname, u.lastname, u.email, u.GenderID, u.home, u.phonenumber, u.imageFile
             FROM user u
@@ -263,18 +265,18 @@ app.get('/api/profile/:id', async function(req, res) {
             return res.send({'message':'ไม่พบผู้ใช้งาน', 'status': false});
         }
 
-        // ดึงประวัติการถูกรายงาน
+        // Fetch report history with the ID of the reporter
         let reportSQL = `
-            SELECT r.reportType 
+            SELECT r.reportType, ur.reporterID
             FROM userreport ur
             JOIN report r ON ur.reportID = r.reportID
             WHERE ur.reportedID = ?
         `;
         let reportHistory = await query(reportSQL, [userID]);
 
-        // ส่งข้อมูล user และประวัติการโดนรายงานกลับไปให้ frontend
+        // Format and send user data with report history
         user = user[0];
-        user['reportHistory'] = reportHistory;  // เพิ่มประวัติการรายงานใน object user
+        user['reportHistory'] = reportHistory;  // Include report history with reporterID
         user['message'] = 'success';
         user['status'] = true;
 
@@ -285,6 +287,7 @@ app.get('/api/profile/:id', async function(req, res) {
         res.send({'message':'token ไม่ถูกต้อง', 'status': false});
     }
 });
+
 
 
 
