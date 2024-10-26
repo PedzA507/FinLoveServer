@@ -1008,20 +1008,29 @@ app.post('/api/check_match', (req, res) => {
 app.get('/api/matches/:userID', (req, res) => {
     const { userID } = req.params;
 
-    // Query สำหรับดึงข้อมูลผู้ใช้ที่จับคู่
+    // Query สำหรับดึงข้อมูลผู้ใช้ที่จับคู่โดยเรียงตามเวลาล่าสุดของ lastInteraction (รวมวันที่)
     const getMatchedUsersWithLastMessageQuery = `
-        SELECT u.userID, u.nickname, u.imageFile, 
+        SELECT u.userID, u.nickname, u.imageFile,
                (SELECT c.message FROM chats c WHERE c.matchID = m.matchID ORDER BY c.timestamp DESC LIMIT 1) AS lastMessage,
                m.matchID,
-               DATE_FORMAT(GREATEST(COALESCE((SELECT c.timestamp FROM chats c WHERE c.matchID = m.matchID ORDER BY c.timestamp DESC LIMIT 1), '1970-01-01'), m.matchDate), '%H:%i') AS lastInteraction  -- เปลี่ยนให้แสดงเฉพาะชั่วโมงและนาที
+               DATE_FORMAT(GREATEST(
+                   COALESCE((SELECT c.timestamp FROM chats c WHERE c.matchID = m.matchID ORDER BY c.timestamp DESC LIMIT 1), '1970-01-01 00:00:00'), 
+                   m.matchDate), '%H:%i') AS lastInteraction,  -- แสดงเฉพาะชั่วโมงและนาที
+               GREATEST(
+                   COALESCE((SELECT c.timestamp FROM chats c WHERE c.matchID = m.matchID ORDER BY c.timestamp DESC LIMIT 1), '1970-01-01 00:00:00'), 
+                   m.matchDate) AS fullLastInteraction  -- ใช้ fullLastInteraction สำหรับการเรียงลำดับ
         FROM matches m
         JOIN user u ON (m.user1ID = u.userID OR m.user2ID = u.userID)
+        LEFT JOIN deleted_chats d ON d.matchID = m.matchID AND d.userID = ?
+        LEFT JOIN blocked_chats b ON b.matchID = m.matchID AND b.isBlocked = 1 AND b.user1ID = ?
         WHERE (m.user1ID = ? OR m.user2ID = ?)
-        AND u.userID != ?
-        ORDER BY lastInteraction DESC;  -- เรียงตามเวลาล่าสุดระหว่าง matchDate และ timestamp
+          AND u.userID != ?
+          AND (d.deleted IS NULL OR (SELECT COUNT(*) FROM chats c WHERE c.matchID = m.matchID AND c.timestamp > d.deleteTimestamp) > 0) 
+          AND (b.isBlocked IS NULL OR b.user1ID != ?)
+        ORDER BY fullLastInteraction DESC;  -- เรียงตามเวลาล่าสุดระหว่าง matchDate และ timestamp แบบเต็ม
     `;
 
-    db.query(getMatchedUsersWithLastMessageQuery, [userID, userID, userID], (err, results) => {
+    db.query(getMatchedUsersWithLastMessageQuery, [userID, userID, userID, userID, userID, userID], (err, results) => {
         if (err) {
             return res.status(500).json({ error: 'Database error' });
         }
@@ -1042,6 +1051,41 @@ app.get('/api/matches/:userID', (req, res) => {
     });
 });
 
+
+app.post('/api/chats/:matchID', (req, res) => {
+    const { matchID } = req.params;
+    const { senderID, message } = req.body;
+
+    // ตรวจสอบสถานะการบล็อกก่อนที่จะบันทึกข้อความ
+    const checkBlockQuery = `
+        SELECT * FROM blocked_chats 
+        WHERE matchID = ? AND isBlocked = 1 AND (user1ID = ? OR user2ID = ?)
+    `;
+
+    db.query(checkBlockQuery, [matchID, senderID, senderID], (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
+        }
+
+        if (results.length > 0) {
+            // หากพบว่าแชทนี้ถูกบล็อก ไม่อนุญาตให้ส่งข้อความ
+            return res.status(403).json({ error: 'You have been blocked from sending messages in this chat' });
+        }
+
+        // บันทึกข้อความถ้าไม่ถูกบล็อก
+        const insertChatQuery = `
+            INSERT INTO chats (matchID, senderID, message, timestamp)
+            VALUES (?, ?, ?, NOW())
+        `;
+
+        db.query(insertChatQuery, [matchID, senderID, message], (err, result) => {
+            if (err) {
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.status(200).json({ success: 'Message sent' });
+        });
+    });
+});
 
 
 
@@ -1094,6 +1138,107 @@ app.post('/api/chats/:matchID', (req, res) => {
 
         // ส่งสถานะความสำเร็จกลับไป
         return res.status(200).json({ success: 'Message sent' });
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+app.post('/api/delete-chat', (req, res) => {
+    const { userID, matchID } = req.body;
+
+    if (!userID || !matchID) {
+        return res.status(400).json({ error: 'Missing userID or matchID' });
+    }
+
+    const deleteQuery = `
+        INSERT INTO deleted_chats (userID, matchID, deleted)
+        VALUES (?, ?, 1)
+        ON DUPLICATE KEY UPDATE deleted = 1;
+    `;
+
+    db.query(deleteQuery, [userID, matchID], (err, result) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.status(200).json({ success: 'Chat hidden successfully' });
+    });
+});
+
+
+app.post('/api/block-chat', (req, res) => {
+    const { userID, matchID, isBlocked } = req.body;
+
+    if (!userID || !matchID || isBlocked === undefined) {
+        return res.status(400).json({ error: 'Missing userID, matchID, or isBlocked' });
+    }
+
+    // ดึง userID2 จากตาราง matches
+    const matchQuery = `SELECT user1ID, user2ID FROM matches WHERE matchID = ?`;
+    db.query(matchQuery, [matchID], (err, results) => {
+        if (err || results.length === 0) {
+            return res.status(500).json({ error: 'Match not found or database error' });
+        }
+
+        // ตรวจสอบว่าผู้ใช้ที่บล็อกคือ user1ID หรือ user2ID
+        const match = results[0];
+        const userID2 = match.user1ID === userID ? match.user2ID : match.user1ID;
+
+        // ดำเนินการ INSERT หรือ UPDATE ลงใน blocked_chats
+        const query = `
+            INSERT INTO blocked_chats (user1ID, user2ID, matchID, isBlocked, blockTimestamp)
+            VALUES (?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE 
+                isBlocked = VALUES(isBlocked),
+                blockTimestamp = NOW();
+        `;
+
+        db.query(query, [userID, userID2, matchID, isBlocked ? 1 : 0], (err, result) => {
+            if (err) {
+                console.error('Database error:', err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+
+            res.status(200).json({ success: isBlocked ? 'Chat blocked successfully' : 'Chat unblocked successfully' });
+        });
+    });
+});
+
+app.post('/api/unblock-chat', (req, res) => {
+    const { userID, matchID } = req.body;
+
+    if (!userID || !matchID) {
+        return res.status(400).json({ error: 'Missing userID or matchID' });
+    }
+
+    // ตั้งค่า isBlocked ให้เป็น 0 เพื่อปลดบล็อค
+    const unblockQuery = `
+        UPDATE blocked_chats 
+        SET isBlocked = 0 
+        WHERE matchID = ? AND user1ID = ?;
+    `;
+
+    db.query(unblockQuery, [matchID, userID], (err, result) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'No match found to unblock' });
+        }
+
+        res.status(200).json({ success: 'Chat unblocked successfully' });
     });
 });
 
