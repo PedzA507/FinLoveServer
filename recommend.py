@@ -54,12 +54,13 @@ def recommend(id):
     if not conn.is_connected():
         conn.reconnect()
 
-    # ดึงข้อมูลผู้ใช้ที่แนะนำพร้อมทั้งแสดง nickname และ imageFile
+    # ดึงข้อมูลผู้ใช้ที่แนะนำพร้อมทั้งแสดง nickname, imageFile และ verify
     sql_query = f'''
     SELECT 
         user.UserID, 
         user.nickname, 
-        user.imageFile
+        user.imageFile,
+        user.verify
     FROM user
     WHERE UserID IN ({recommended_user_ids_str})
     '''
@@ -70,8 +71,9 @@ def recommend(id):
         if user['imageFile']:
             recommended_users.at[index, 'imageFile'] = f"http://{request.host}/api/user/{user['imageFile']}"
 
-    # ส่งข้อมูลผู้ใช้ที่แนะนำกลับในรูปแบบ JSON
-    return jsonify(recommended_users[['UserID', 'nickname', 'imageFile']].to_dict(orient='records')), 200
+    # ส่งข้อมูลผู้ใช้ที่แนะนำกลับในรูปแบบ JSON พร้อมฟิลด์ verify
+    return jsonify(recommended_users[['UserID', 'nickname', 'imageFile', 'verify']].to_dict(orient='records')), 200
+
 
 
 @app.route('/api/user/<filename>', methods=['GET'])

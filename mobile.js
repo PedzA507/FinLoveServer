@@ -364,18 +364,19 @@ app.post('/api/reset-password', async (req, res) => {
 
 
 // แสดงข้อมูลผู้ใช้ทั้งหมด
-app.get('/api/user', function(req, res){        
-    const sql = "SELECT username, imageFile, preferences FROM user";
+app.get('/api/user', function(req, res) {        
+    const sql = "SELECT username, imageFile, preferences, verify FROM user";
     db.query(sql, function(err, result) {
         if (err) throw err;
         
         if(result.length > 0){
             res.send(result);
-        }else{
-            res.send( {'message':'ไม่พบข้อมูลผู้ใช้','status':false} );
+        } else {
+            res.send({ message: 'ไม่พบข้อมูลผู้ใช้', status: false });
         }        
     });
 });
+
 
 
 
@@ -385,15 +386,15 @@ app.get('/api/user/image/:filename', function(req, res){
 });
 
 
-
 // เรียกดูข้อมูลผู้ใช้
 app.get('/api/user/:id', async function (req, res) {
     const { id } = req.params;
     const sql = `
     SELECT 
         u.username, u.email, u.firstname, u.lastname, u.nickname, 
-        g.Gender_Name AS gender, ig.interestGenderName AS interestGender, u.height, u.home, u.DateBirth, 
-        u.imageFile,
+        u.verify,  -- เพิ่มฟิลด์ verify
+        g.Gender_Name AS gender, ig.interestGenderName AS interestGender, 
+        u.height, u.home, u.DateBirth, u.imageFile,
         e.EducationName AS education,
         go.goalName AS goal,
         COALESCE(GROUP_CONCAT(DISTINCT p.PreferenceNames), 'ไม่มีความชอบ') AS preferences
@@ -426,6 +427,7 @@ app.get('/api/user/:id', async function (req, res) {
 });
 
 
+
 app.get('/api/profile/:id', async function (req, res) {
     const { id } = req.params;
     const sql = `
@@ -433,6 +435,7 @@ app.get('/api/profile/:id', async function (req, res) {
         u.firstname, 
         u.lastname, 
         u.nickname, 
+        u.verify,  -- เพิ่มฟิลด์ verify
         g.Gender_Name AS gender, 
         COALESCE(GROUP_CONCAT(DISTINCT p.PreferenceNames), 'ไม่มีความชอบ') AS preferences,
         u.imageFile
@@ -460,6 +463,7 @@ app.get('/api/profile/:id', async function (req, res) {
         res.status(500).send({ message: "เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้", status: false });
     }
 });
+
 
 
 
@@ -1004,12 +1008,12 @@ app.post('/api/check_match', (req, res) => {
 app.get('/api/matches/:userID', (req, res) => {
     const { userID } = req.params;
 
-    // Query สำหรับดึงข้อความล่าสุดของการจับคู่ พร้อมทั้ง matchID, matchDate และ timestamp ล่าสุดจาก chats
+    // Query สำหรับดึงข้อมูลผู้ใช้ที่จับคู่
     const getMatchedUsersWithLastMessageQuery = `
         SELECT u.userID, u.nickname, u.imageFile, 
                (SELECT c.message FROM chats c WHERE c.matchID = m.matchID ORDER BY c.timestamp DESC LIMIT 1) AS lastMessage,
                m.matchID,
-               GREATEST(COALESCE((SELECT c.timestamp FROM chats c WHERE c.matchID = m.matchID ORDER BY c.timestamp DESC LIMIT 1), '1970-01-01'), m.matchDate) AS lastInteraction  -- ใช้ GREATEST เพื่อเลือกเวลาที่ล่าสุดระหว่าง matchDate และ timestamp
+               DATE_FORMAT(GREATEST(COALESCE((SELECT c.timestamp FROM chats c WHERE c.matchID = m.matchID ORDER BY c.timestamp DESC LIMIT 1), '1970-01-01'), m.matchDate), '%H:%i') AS lastInteraction  -- เปลี่ยนให้แสดงเฉพาะชั่วโมงและนาที
         FROM matches m
         JOIN user u ON (m.user1ID = u.userID OR m.user2ID = u.userID)
         WHERE (m.user1ID = ? OR m.user2ID = ?)
@@ -1037,6 +1041,7 @@ app.get('/api/matches/:userID', (req, res) => {
         return res.status(200).json(results);
     });
 });
+
 
 
 
@@ -1091,8 +1096,6 @@ app.post('/api/chats/:matchID', (req, res) => {
         return res.status(200).json({ success: 'Message sent' });
     });
 });
-
-
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
