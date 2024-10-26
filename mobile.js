@@ -731,41 +731,36 @@ app.put('/api/user/update/:id', upload.single('image'), async function (req, res
 });
 
 
-
+// API Delete User
 // API Delete User
 app.delete('/api/user/:id', async function (req, res) {
     const { id } = req.params;
 
-    const sqlGetUserImage = "SELECT imageFile FROM User WHERE userID = ?";
-    const sqlDeleteUser = "DELETE FROM User WHERE userID = ?";
+    // SQL Queries
+    const sqlDeleteUserReport = "DELETE FROM userreport WHERE reporterID = ? OR reportedID = ?";
+    const sqlDeleteBlockedChats = "DELETE FROM blocked_chats WHERE user1ID = ? OR user2ID = ?";
+    const sqlDeleteLikes = "DELETE FROM userlike WHERE likerID = ? OR likedID = ?";
+    const sqlDeleteDislikes = "DELETE FROM userdislike WHERE dislikerID = ? OR dislikedID = ?";
+    const sqlDeleteChats = "DELETE FROM chats WHERE matchID IN (SELECT matchID FROM matches WHERE user1ID = ? OR user2ID = ?)";
+    const sqlDeleteMatches = "DELETE FROM matches WHERE user1ID = ? OR user2ID = ?";
+    const sqlDeleteDeletedChats = "DELETE FROM deleted_chats WHERE userID = ?";
+    const sqlDeleteUser = "DELETE FROM user WHERE UserID = ?";
 
     try {
-        // ดึงชื่อไฟล์รูปภาพของผู้ใช้
-        const [imageResult] = await db.promise().query(sqlGetUserImage, [id]);
+        // ลบข้อมูลที่เกี่ยวข้องกับผู้ใช้ในแต่ละตาราง
+        await db.promise().query(sqlDeleteUserReport, [id, id]);
+        await db.promise().query(sqlDeleteBlockedChats, [id, id]);
+        await db.promise().query(sqlDeleteLikes, [id, id]);
+        await db.promise().query(sqlDeleteDislikes, [id, id]);
+        await db.promise().query(sqlDeleteChats, [id, id]);
+        await db.promise().query(sqlDeleteMatches, [id, id]);
+        await db.promise().query(sqlDeleteDeletedChats, [id]);
 
-        if (imageResult.length > 0) {
-            const imageFile = imageResult[0].imageFile;
+        // ลบข้อมูลผู้ใช้จากตาราง user
+        const [deleteResult] = await db.promise().query(sqlDeleteUser, [id]);
 
-            // ลบข้อมูลผู้ใช้ในตาราง User
-            const [deleteResult] = await db.promise().query(sqlDeleteUser, [id]);
-
-            if (deleteResult.affectedRows > 0) {
-                // ลบไฟล์รูปภาพจากโฟลเดอร์ assets/user
-                if (imageFile) {
-                    const filePath = path.join(__dirname, 'assets/user', imageFile);
-                    fs.unlink(filePath, (err) => {
-                        if (err) {
-                            console.error('Error deleting image file:', err);
-                        } else {
-                            console.log('Image file deleted:', filePath);
-                        }
-                    });
-                }
-
-                res.send({ message: "ลบข้อมูลผู้ใช้สำเร็จ", status: true });
-            } else {
-                res.status(404).send({ message: "ไม่พบผู้ใช้ที่ต้องการลบ", status: false });
-            }
+        if (deleteResult.affectedRows > 0) {
+            res.send({ message: "ลบข้อมูลผู้ใช้สำเร็จ", status: true });
         } else {
             res.status(404).send({ message: "ไม่พบผู้ใช้ที่ต้องการลบ", status: false });
         }
@@ -1023,43 +1018,41 @@ app.post('/api/check_match', (req, res) => {
 
 
 // API Get Match
+// API Get Match
 app.get('/api/matches/:userID', (req, res) => {
     const { userID } = req.params;
 
-    // Query สำหรับดึงข้อมูลผู้ใช้ที่จับคู่โดยเรียงตามเวลาล่าสุดของ lastInteraction (รวมวันที่)
     const getMatchedUsersWithLastMessageQuery = `
         SELECT u.userID, u.nickname, u.imageFile,
                (SELECT c.message FROM chats c WHERE c.matchID = m.matchID ORDER BY c.timestamp DESC LIMIT 1) AS lastMessage,
                m.matchID,
                DATE_FORMAT(GREATEST(
                    COALESCE((SELECT c.timestamp FROM chats c WHERE c.matchID = m.matchID ORDER BY c.timestamp DESC LIMIT 1), '1970-01-01 00:00:00'), 
-                   m.matchDate), '%H:%i') AS lastInteraction,  -- แสดงเฉพาะชั่วโมงและนาที
+                   m.matchDate), '%H:%i') AS lastInteraction,
                GREATEST(
                    COALESCE((SELECT c.timestamp FROM chats c WHERE c.matchID = m.matchID ORDER BY c.timestamp DESC LIMIT 1), '1970-01-01 00:00:00'), 
-                   m.matchDate) AS fullLastInteraction  -- ใช้ fullLastInteraction สำหรับการเรียงลำดับ
+                   m.matchDate) AS fullLastInteraction,
+               COALESCE(b.isBlocked, 0) AS isBlocked -- แสดงสถานะการบล็อค
         FROM matches m
         JOIN user u ON (m.user1ID = u.userID OR m.user2ID = u.userID)
         LEFT JOIN deleted_chats d ON d.matchID = m.matchID AND d.userID = ?
-        LEFT JOIN blocked_chats b ON b.matchID = m.matchID AND b.isBlocked = 1 AND b.user1ID = ?
+        LEFT JOIN blocked_chats b ON b.matchID = m.matchID AND b.user1ID = ?
         WHERE (m.user1ID = ? OR m.user2ID = ?)
           AND u.userID != ?
           AND (d.deleted IS NULL OR (SELECT COUNT(*) FROM chats c WHERE c.matchID = m.matchID AND c.timestamp > d.deleteTimestamp) > 0) 
-          AND (b.isBlocked IS NULL OR b.user1ID != ?)
-        ORDER BY fullLastInteraction DESC;  -- เรียงตามเวลาล่าสุดระหว่าง matchDate และ timestamp แบบเต็ม
+        ORDER BY fullLastInteraction DESC;
     `;
 
-    db.query(getMatchedUsersWithLastMessageQuery, [userID, userID, userID, userID, userID, userID], (err, results) => {
+    db.query(getMatchedUsersWithLastMessageQuery, [userID, userID, userID, userID, userID], (err, results) => {
         if (err) {
             return res.status(500).json({ error: 'Database error' });
         }
 
-        // ปรับปรุงเส้นทาง imageFile ให้ถูกต้อง
         results.forEach(user => {
             if (user.imageFile) {
                 user.imageFile = `${req.protocol}://${req.get('host')}/assets/user/${user.imageFile}`;
             }
 
-            // ตรวจสอบถ้า lastMessage เป็น null ให้แสดงข้อความ "เริ่มแชทกันเลย !!!"
             if (user.lastMessage === null) {
                 user.lastMessage = "เริ่มแชทกันเลย !!!";
             }
@@ -1070,14 +1063,15 @@ app.get('/api/matches/:userID', (req, res) => {
 });
 
 
-// API Chat 
+
+// API Chat (ส่งข้อความ)
 app.post('/api/chats/:matchID', (req, res) => {
     const { matchID } = req.params;
     const { senderID, message } = req.body;
 
     // ตรวจสอบสถานะการบล็อกก่อนที่จะบันทึกข้อความ
     const checkBlockQuery = `
-        SELECT * FROM blocked_chats 
+        SELECT isBlocked FROM blocked_chats 
         WHERE matchID = ? AND isBlocked = 1 AND (user1ID = ? OR user2ID = ?)
     `;
 
@@ -1087,11 +1081,10 @@ app.post('/api/chats/:matchID', (req, res) => {
         }
 
         if (results.length > 0) {
-            // หากพบว่าแชทนี้ถูกบล็อก ไม่อนุญาตให้ส่งข้อความ
             return res.status(403).json({ error: 'You have been blocked from sending messages in this chat' });
         }
 
-        // บันทึกข้อความถ้าไม่ถูกบล็อก
+        // บันทึกข้อความถ้าไม่ถูกบล็อค
         const insertChatQuery = `
             INSERT INTO chats (matchID, senderID, message, timestamp)
             VALUES (?, ?, ?, NOW())
@@ -1105,6 +1098,7 @@ app.post('/api/chats/:matchID', (req, res) => {
         });
     });
 });
+
 
 
 // API Show Chat
