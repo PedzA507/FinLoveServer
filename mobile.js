@@ -1017,7 +1017,6 @@ app.post('/api/check_match', (req, res) => {
 
 
 // API Get Match
-// API Get Match
 app.get('/api/matches/:userID', (req, res) => {
     const { userID } = req.params;
 
@@ -1178,7 +1177,6 @@ app.post('/api/delete-chat', (req, res) => {
     });
 });
 
-
 // API Block User
 app.post('/api/block-chat', (req, res) => {
     const { userID, matchID, isBlocked } = req.body;
@@ -1188,20 +1186,37 @@ app.post('/api/block-chat', (req, res) => {
         return res.status(400).json({ error: 'Missing userID, matchID, or isBlocked' });
     }
 
-    // Query to get userID2 from the matches table
+    // Query to get user1ID and user2ID from the matches table
     const matchQuery = `SELECT user1ID, user2ID FROM matches WHERE matchID = ?`;
     db.query(matchQuery, [matchID], (err, results) => {
         if (err || results.length === 0) {
+            console.error('Database error or match not found');
             return res.status(500).json({ error: 'Match not found or database error' });
         }
 
-        // Determine userID2 based on who is blocking
-        const match = results[0];
-        const userID2 = match.user1ID === userID ? match.user2ID : match.user1ID;
+        // ดึงข้อมูล user1ID และ user2ID จากผลลัพธ์
+        let { user1ID, user2ID } = results[0];
 
-        // Check if a block record already exists for this user pair
+        console.log(`Initial values - Received userID: ${userID}, user1ID: ${user1ID}, user2ID: ${user2ID}`);
+
+        // ถ้า userID ไม่ตรงกับ user1ID ให้สลับตำแหน่ง
+        if (userID != user1ID) {
+            console.log("Swapping positions as userID doesn't match user1ID");
+            [user1ID, user2ID] = [user2ID, user1ID]; // สลับตำแหน่ง
+            console.log(`Swapped values - user1ID: ${user1ID}, user2ID: ${user2ID}`);
+        }
+
+        // ตรวจสอบอีกครั้งเพื่อให้มั่นใจว่า user1ID และ user2ID ไม่ซ้ำกัน
+        if (user1ID == user2ID) {
+            console.log("Detected same IDs for user1ID and user2ID after swapping, correcting user2ID to the other user");
+            user2ID = user1ID === results[0].user1ID ? results[0].user2ID : results[0].user1ID;
+        }
+
+        console.log(`Final values before blocking - user1ID: ${user1ID}, user2ID: ${user2ID}`);
+
+        // ตรวจสอบว่า block record นี้มีอยู่แล้วหรือไม่
         const checkQuery = `SELECT blockID FROM blocked_chats WHERE user1ID = ? AND user2ID = ?`;
-        db.query(checkQuery, [userID, userID2], (err, checkResult) => {
+        db.query(checkQuery, [user1ID, user2ID], (err, checkResult) => {
             if (err) {
                 console.error('Database error:', err);
                 return res.status(500).json({ error: 'Database error' });
@@ -1213,11 +1228,12 @@ app.post('/api/block-chat', (req, res) => {
                     UPDATE blocked_chats 
                     SET isBlocked = ?, blockTimestamp = NOW() 
                     WHERE user1ID = ? AND user2ID = ?`;
-                db.query(updateQuery, [isBlocked ? 1 : 0, userID, userID2], (err, result) => {
+                db.query(updateQuery, [isBlocked ? 1 : 0, user1ID, user2ID], (err, result) => {
                     if (err) {
                         console.error('Database error:', err);
                         return res.status(500).json({ error: 'Database error' });
                     }
+                    console.log(`Updated block status successfully: user1ID: ${user1ID}, user2ID: ${user2ID}, isBlocked: ${isBlocked}`);
                     res.status(200).json({ success: isBlocked ? 'Chat blocked successfully' : 'Chat unblocked successfully' });
                 });
             } else {
@@ -1225,19 +1241,18 @@ app.post('/api/block-chat', (req, res) => {
                 const insertQuery = `
                     INSERT INTO blocked_chats (user1ID, user2ID, matchID, isBlocked, blockTimestamp)
                     VALUES (?, ?, ?, ?, NOW())`;
-                db.query(insertQuery, [userID, userID2, matchID, isBlocked ? 1 : 0], (err, result) => {
+                db.query(insertQuery, [user1ID, user2ID, matchID, isBlocked ? 1 : 0], (err, result) => {
                     if (err) {
                         console.error('Database error:', err);
                         return res.status(500).json({ error: 'Database error' });
                     }
+                    console.log(`Inserted new block record successfully: user1ID: ${user1ID}, user2ID: ${user2ID}, matchID: ${matchID}, isBlocked: ${isBlocked}`);
                     res.status(200).json({ success: 'Chat blocked successfully' });
                 });
             }
         });
     });
 });
-
-
 
 
 // API Unblock User
