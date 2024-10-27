@@ -1,7 +1,7 @@
 const express = require('express');
 const mysql = require('mysql2');
 const app = express();
-const port = 5000;
+const port = process.env.SERVER_PORT || 5000;
 const https = require('https');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
@@ -42,6 +42,17 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use(fileupload());
+
+const rateLimit = require('express-rate-limit');
+
+const limiter = rateLimit({
+    windowMs: 60 * 1000, // 1 นาที
+    max: 100, // จำกัดคำขอ 100 ครั้งต่อนาที
+    message: { message: "Too many requests, please try again later.", status: false }
+});
+
+app.use(limiter); // นำไปใช้กับทุกเส้นทาง
+
 
 // Static assets
 app.use('/assets/user', express.static(path.join(__dirname, 'assets/user')));
@@ -940,8 +951,32 @@ app.put('/api/preferences/:id', async (req, res) => {
 ////////////////////////////////////////////////////////////////////////// Web server ////////////////////////////////////////////////////////////////////////////////////
 
 
+// API สำหรับดึงจำนวนผู้ใช้ทั้งหมด
+app.get('/api/stats/total-users', async (req, res) => {
+    try {
+        const result = await query(`SELECT COUNT(UserID) AS total_users FROM user`);
+        console.log("Total Users:", result[0].total_users);
+        res.json({ total_users: result[0].total_users });
+    } catch (error) {
+        console.error('Error fetching total users:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
+
+// API ดึงจำนวนผู้ใช้ที่ถูก report ทั้งหมด
+app.get('/api/stats/total-reported-users', async (req, res) => {
+    try {
+        const result = await query(`SELECT COUNT(userreportID) AS total_reported_users FROM userreport`);
+        console.log("Total Reported Users:", result[0].total_reported_users);
+        res.json({ total_reported_users: result[0].total_reported_users });
+    } catch (error) {
+        console.error('Error fetching total reported users:', error);
+        res.status(500).json({ error: 'Error fetching total reported users' });
+    }
+});
+
+
 // Create an HTTPS server
-const httpsServer = https.createServer(credentials, app);
 app.listen(port, () => {
-    console.log(`HTTPS Server running on port ${port}`);
+    console.log(`Server running on port ${port}`);
 });

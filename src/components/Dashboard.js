@@ -1,52 +1,56 @@
 import React, { useEffect, useState } from 'react';
-import { Typography, Avatar, Button, ButtonGroup, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Container, Grid, Card, CardContent, Drawer, List, ListItem, ListItemIcon, ListItemText, Snackbar, Alert } from '@mui/material';
-import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, LineChart, Line, ResponsiveContainer } from 'recharts';
+import {
+  Typography, Avatar, Button, ButtonGroup, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box,
+  Container, Grid, Card, CardContent, Drawer, List, ListItem, ListItemIcon, ListItemText, Snackbar, Alert
+} from '@mui/material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { Home as HomeIcon, People as PeopleIcon, Settings as SettingsIcon, ExitToApp as ExitToAppIcon } from '@mui/icons-material';
+import { People as PeopleIcon, Settings as SettingsIcon, ExitToApp as ExitToAppIcon } from '@mui/icons-material';
 
 const url = process.env.REACT_APP_BASE_URL;
 const token = localStorage.getItem('token');
-
-// Sample data for charts
-const newUserStats = [
-  { name: 'Jan', sessions: 28 },
-  { name: 'Feb', sessions: 53 },
-  { name: 'Mar', sessions: 51 },
-  { name: 'Apr', sessions: 26 },
-  { name: 'May', sessions: 58 },
-];
-
-const matchStats = [
-  { name: 'Jan', matches: 90 },
-  { name: 'Feb', matches: 70 },
-  { name: 'Mar', matches: 80 },
-  { name: 'Apr', matches: 85 },
-  { name: 'May', matches: 95 },
-  { name: 'Jun', matches: 70 },
-];
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [notification, setNotification] = useState({ open: false, message: '', severity: 'info' });
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalReportedUsers, setTotalReportedUsers] = useState(0);
 
   useEffect(() => {
+    axios.get(`${url}/stats/total-users`)
+      .then(response => {
+        setTotalUsers(response.data.total_users);
+      })
+      .catch(error => {
+        console.error('Error fetching total users:', error);
+        showNotification('Error fetching total users', 'error');
+      });
+
+    axios.get(`${url}/stats/total-reported-users`)
+      .then(response => {
+        setTotalReportedUsers(response.data.total_reported_users);
+      })
+      .catch(error => {
+        console.error('Error fetching total reported users:', error);
+        showNotification('Error fetching total reported users', 'error');
+      });
+
     axios.get(`${url}/userreport`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-    .then((response) => {
-      const data = response.data;
-      if (Array.isArray(data)) {
-        setUsers(data);
-      } else {
+      .then((response) => {
+        const data = response.data;
+        if (Array.isArray(data)) {
+          setUsers(data);
+        } else {
+          setUsers([]);
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching users:', error);
         setUsers([]);
-      }
-    })
-    .catch((error) => {
-      console.error('Error fetching users:', error);
-      setUsers([]);
-    });
+      });
   }, []);
 
   const showNotification = (message, severity) => {
@@ -61,60 +65,55 @@ export default function Dashboard() {
     axios.put(`${url}/user/ban/${userID}`, null, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-    .then((response) => {
-      if (response.data.status === true) {
-        showNotification(response.data.message, 'success');
-        setUsers((prevUsers) => prevUsers.map(user => user.userID === userID ? { ...user, isActive: 0 } : user));
-      } else {
-        showNotification('Failed to suspend user', 'error');
-      }
-    })
-    .catch((error) => {
-      showNotification('Error suspending user', 'error');
-      console.error('Error suspending user:', error);
-    });
+      .then((response) => {
+        if (response.data.status === true) {
+          showNotification(response.data.message, 'success');
+          setUsers((prevUsers) => prevUsers.map(user => user.userID === userID ? { ...user, isActive: 0 } : user));
+        } else {
+          showNotification('Failed to suspend user', 'error');
+        }
+      })
+      .catch((error) => {
+        showNotification('Error suspending user', 'error');
+        console.error('Error suspending user:', error);
+      });
   };
 
   const handleUnbanUser = (userID) => {
     axios.put(`${url}/user/unban/${userID}`, null, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-    .then((response) => {
-      if (response.data.status === true) {
-        showNotification(response.data.message, 'success');
-        setUsers((prevUsers) => prevUsers.map(user => user.userID === userID ? { ...user, isActive: 1 } : user));
-      } else {
-        showNotification('Failed to unban user', 'error');
-      }
-    })
-    .catch((error) => {
-      showNotification('Error unbanning user', 'error');
-      console.error('Error unbanning user:', error);
-    });
+      .then((response) => {
+        if (response.data.status === true) {
+          showNotification(response.data.message, 'success');
+          setUsers((prevUsers) => prevUsers.map(user => user.userID === userID ? { ...user, isActive: 1 } : user));
+        } else {
+          showNotification('Failed to unban user', 'error');
+        }
+      })
+      .catch((error) => {
+        showNotification('Error unbanning user', 'error');
+        console.error('Error unbanning user:', error);
+      });
   };
 
   const handleLogout = () => {
     axios.post(`${url}/logout`, {}, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-    .then((response) => {
-      if (response.data.status === true) {
-        // ลบ token และ positionID ออกจาก localStorage
-        localStorage.removeItem('token');
-        localStorage.removeItem('positionID');
-
-        // แสดงแจ้งเตือนการ logout สำเร็จ
-        showNotification(response.data.message, 'success');
-
-        // นำทางไปยังหน้า login และรีเฟรชหน้า
-        navigate('/signinuser');
-        window.location.reload(); // รีเฟรชหน้าเพื่อเคลียร์ข้อมูลสิทธิ์ที่ค้างอยู่
-      }
-    })
-    .catch((error) => {
-      showNotification('Error during logout', 'error');
-      console.error('Error during logout:', error);
-    });
+      .then((response) => {
+        if (response.data.status === true) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('positionID');
+          showNotification(response.data.message, 'success');
+          navigate('/signinuser');
+          window.location.reload();
+        }
+      })
+      .catch((error) => {
+        showNotification('Error during logout', 'error');
+        console.error('Error during logout:', error);
+      });
   };
 
   const drawerWidth = 240;
@@ -155,12 +154,10 @@ export default function Dashboard() {
                   backgroundColor: '#f9f9f9',
                   borderRadius: '10px',
                   border: '2px solid black',
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
                   marginBottom: '10px',
                   '&:hover': {
                     backgroundColor: '#f8e9f0',
                     color: '#fff',
-                    boxShadow: '0 4px 12px rgba(255, 105, 180, 0.4)',
                     borderColor: '#ff69b4',
                   },
                 }}
@@ -176,38 +173,22 @@ export default function Dashboard() {
       {/* Main Content */}
       <Box component="main" sx={{ flexGrow: 1, padding: 3, backgroundColor: '#F8E9F0', minHeight: '100vh' }}>
         <Container maxWidth="lg" sx={{ mt: 4 }}>
-          {/* Charts Section */}
+          {/* Summary Section */}
           <Grid container spacing={4}>
             <Grid item xs={12} md={6}>
-              <Card sx={{ backgroundColor: '#fff', borderRadius: '10px', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)', border: '2px solid black' }}>
+              <Card sx={{ backgroundColor: '#fff', borderRadius: '10px', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)', padding: 2 }}>
                 <CardContent>
-                  <Typography variant="h6" gutterBottom>ผู้ใช้งานใหม่</Typography>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={newUserStats}>
-                      <CartesianGrid stroke="#ccc" />
-                      <XAxis dataKey="name" stroke="#000" />
-                      <YAxis stroke="#000" />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="sessions" stroke="#8884d8" />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <Typography variant="h5" gutterBottom>จำนวนผู้ใช้งานทั้งหมด</Typography>
+                  <Typography variant="h3" color="primary">{totalUsers}</Typography>
                 </CardContent>
               </Card>
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <Card sx={{ backgroundColor: '#fff', borderRadius: '10px', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)', border: '2px solid black' }}>
+              <Card sx={{ backgroundColor: '#fff', borderRadius: '10px', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)', padding: 2 }}>
                 <CardContent>
-                  <Typography variant="h6" gutterBottom>จำนวนการแมท</Typography>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={matchStats}>
-                      <CartesianGrid stroke="#ccc" />
-                      <XAxis dataKey="name" stroke="#000" />
-                      <YAxis stroke="#000" />
-                      <Tooltip />
-                      <Bar dataKey="matches" fill="#8884d8" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <Typography variant="h5" gutterBottom>จำนวนผู้ใช้ที่ถูก Report ทั้งหมด</Typography>
+                  <Typography variant="h3" color="secondary">{totalReportedUsers}</Typography>
                 </CardContent>
               </Card>
             </Grid>
@@ -263,7 +244,7 @@ export default function Dashboard() {
             </TableContainer>
           </Box>
 
-          {/* Logout Notification Snackbar */}
+          {/* Notification Snackbar */}
           <Snackbar
             open={notification.open}
             autoHideDuration={6000}
