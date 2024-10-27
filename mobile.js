@@ -50,6 +50,16 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+const helmet = require('helmet');
+app.use(helmet());
+
+const rateLimit = require('express-rate-limit');
+
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // Limit each IP to 10 requests per windowMs
+    message: "Too many login attempts from this IP, please try again after 15 minutes"
+});
 
 
 ///////////////////////////////////////////////////////////// Login Logout /////////////////////////////////////////////////////////////
@@ -73,14 +83,25 @@ app.post('/api/login', async function(req, res) {
 
             // ตรวจสอบสถานะของบัญชีว่าถูกล็อกหรือไม่
             if (isActive !== 1) {
-                // อัปเดต lastAttemptTime ทุกครั้งที่มีการพยายามเข้าสู่ระบบ
-                await db.promise().query("UPDATE User SET lastAttemptTime = NOW() WHERE userID = ?", [user.userID]);
-                return res.send({ "message": "บัญชีนี้ถูกปิดใช้งาน", "status": false });
+                // ตรวจสอบว่ามีการปลดล็อกอัตโนมัติหรือไม่หลังจากผ่านไป 24 ชั่วโมง
+                const now = new Date();
+                const lastAttempt = lastAttemptTime ? new Date(lastAttemptTime) : new Date(0);
+                const diffTime = Math.abs(now - lastAttempt);
+                const diffHours = diffTime / (1000 * 60 * 60);
+
+                // ถ้าเกิน 24 ชั่วโมง รีเซ็ต loginAttempt และปลดล็อกบัญชี
+                if (diffHours >= 24) {
+                    await db.promise().query("UPDATE User SET loginAttempt = 0, isActive = 1 WHERE userID = ?", [user.userID]);
+                } else {
+                    // อัปเดต lastAttemptTime ทุกครั้งที่มีการพยายามเข้าสู่ระบบ
+                    await db.promise().query("UPDATE User SET lastAttemptTime = NOW() WHERE userID = ?", [user.userID]);
+                    return res.send({ "message": "บัญชีนี้ถูกปิดใช้งาน", "status": false });
+                }
             }
 
             // ตรวจสอบจำนวนครั้งในการพยายามเข้าสู่ระบบในช่วงเวลา 24 ชั่วโมง
             const now = new Date();
-            const lastAttempt = lastAttemptTime ? new Date(lastAttemptTime) : new Date(0); // ถ้าไม่มีค่า lastAttemptTime ให้ใช้วันที่ 0
+            const lastAttempt = lastAttemptTime ? new Date(lastAttemptTime) : new Date(0);
             const diffTime = Math.abs(now - lastAttempt);
             const diffHours = Math.ceil(diffTime / (1000 * 60 * 60)); // แปลงเป็นชั่วโมง
 
@@ -140,6 +161,7 @@ app.post('/api/login', async function(req, res) {
 });
 
 
+
 // API Logout
 app.post('/api/logout/:id', async (req, res) => {
     const { id } = req.params;
@@ -168,7 +190,7 @@ app.post('/api/checkUsernameEmail', async function(req, res) {
     }
 
     try {
-        const [usernameResult] = await db.promise().query("SELECT username FROM User WHERE username = ?", [username]);
+        const [usernameResult] = await db.promise().execute("SELECT username FROM User WHERE username = ?", [username]);
         const [emailResult] = await db.promise().query("SELECT email FROM User WHERE email = ?", [email]);
 
         if (usernameResult.length > 0) {
