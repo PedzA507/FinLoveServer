@@ -56,17 +56,15 @@ app.use(helmet());
 const rateLimit = require('express-rate-limit');
 
 const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // Limit each IP to 10 requests per windowMs
-    message: "Too many login attempts from this IP, please try again after 15 minutes"
-});
+    windowMs: 10 * 1000, // เริ่มต้นล็อก 10 วินาที
+    max: 5, // Limit each IP to 5 requests per windowMs
+    message: "Too many login attempts from this IP, please try again after 10 seconds"
+}); 
 
 
 ///////////////////////////////////////////////////////////// Login Logout /////////////////////////////////////////////////////////////
 
 
-
-// API สำหรับการเข้าสู่ระบบ
 app.post('/api/login', async function(req, res) {
     const { username, password } = req.body;
     const sql = "SELECT userID, password, loginAttempt, isActive, lastAttemptTime FROM User WHERE username = ?";
@@ -79,69 +77,53 @@ app.post('/api/login', async function(req, res) {
             const storedHashedPassword = user.password;
             const loginAttempt = user.loginAttempt;
             const isActive = user.isActive;
-            const lastAttemptTime = user.lastAttemptTime;
+            const lastAttemptTime = user.lastAttemptTime ? new Date(user.lastAttemptTime) : null;
+            const now = new Date();
+            
+            // ระยะเวลาล็อกแบบไล่ตามขั้นบันได (เริ่มที่ 10 วินาทีเมื่อผิดครั้งที่ 5)
+            const lockIntervals = [10, 30, 60, 300, 600]; // หน่วยเป็นวินาที
+            const baseLockDuration = 5; // เริ่มล็อกเมื่อล็อกอินผิดครั้งที่ 5
+            let lockDuration = lockIntervals[0] * 1000; // เริ่มล็อกครั้งแรก 10 วินาที
 
-            // ตรวจสอบสถานะของบัญชีว่าถูกล็อกหรือไม่
-            if (isActive !== 1) {
-                // ตรวจสอบว่ามีการปลดล็อกอัตโนมัติหรือไม่หลังจากผ่านไป 24 ชั่วโมง
-                const now = new Date();
-                const lastAttempt = lastAttemptTime ? new Date(lastAttemptTime) : new Date(0);
-                const diffTime = Math.abs(now - lastAttempt);
-                const diffHours = diffTime / (1000 * 60 * 60);
+            if (loginAttempt >= baseLockDuration) {
+                lockDuration = lockIntervals[Math.min(loginAttempt - baseLockDuration, lockIntervals.length - 1)] * 1000; // ใช้ lockIntervals ที่เหมาะสม
 
-                // ถ้าเกิน 24 ชั่วโมง รีเซ็ต loginAttempt และปลดล็อกบัญชี
-                if (diffHours >= 24) {
-                    await db.promise().query("UPDATE User SET loginAttempt = 0, isActive = 1 WHERE userID = ?", [user.userID]);
+                const diffSeconds = (now - lastAttemptTime) / 1000;
+
+                if (diffSeconds < lockDuration / 1000) {
+                    return res.send({
+                        "message": `บัญชีนี้ถูกปิดใช้งาน กรุณาลองอีกครั้งหลังจาก ${Math.ceil((lockDuration / 1000) - diffSeconds)} วินาที`, 
+                        "status": false 
+                    });
                 } else {
-                    // อัปเดต lastAttemptTime ทุกครั้งที่มีการพยายามเข้าสู่ระบบ
-                    await db.promise().query("UPDATE User SET lastAttemptTime = NOW() WHERE userID = ?", [user.userID]);
-                    return res.send({ "message": "บัญชีนี้ถูกปิดใช้งาน", "status": false });
+                    // ปลดล็อกบัญชีเมื่อครบกำหนดและรีเซ็ต loginAttempt
+                    await db.promise().query("UPDATE User SET loginAttempt = 0, isActive = 1 WHERE userID = ?", [user.userID]);
                 }
             }
 
-            // ตรวจสอบจำนวนครั้งในการพยายามเข้าสู่ระบบในช่วงเวลา 24 ชั่วโมง
-            const now = new Date();
-            const lastAttempt = lastAttemptTime ? new Date(lastAttemptTime) : new Date(0);
-            const diffTime = Math.abs(now - lastAttempt);
-            const diffHours = Math.ceil(diffTime / (1000 * 60 * 60)); // แปลงเป็นชั่วโมง
-
-            if (loginAttempt > 5 && diffHours < 24) {
-                // อัปเดต lastAttemptTime ทุกครั้งที่มีการพยายามเข้าสู่ระบบ
-                await db.promise().query("UPDATE User SET lastAttemptTime = NOW() WHERE userID = ?", [user.userID]);
-                return res.send({ 
-                    "message": "บัญชีคุณถูกล็อคเนื่องจากมีการพยายามเข้าสู่ระบบเกินกำหนด", 
-                    "status": false 
-                });
-            }
-
-            // ตรวจสอบรหัสผ่าน
             const match = await bcrypt.compare(password, storedHashedPassword);
 
             if (match) {
-                // รีเซ็ตจำนวนครั้งการพยายามเข้าสู่ระบบและ lastAttemptTime
-                const updateSql = "UPDATE User SET loginAttempt = 0, lastAttemptTime = NOW(), isActive = 1 WHERE userID = ?";
-                const [updateResult] = await db.promise().query(updateSql, [user.userID]);
-
-                // ตรวจสอบว่ามีการอัปเดตสำเร็จหรือไม่
-                if (updateResult.affectedRows > 0) {
-                    return res.send({ 
-                        "message": "เข้าสู่ระบบสำเร็จ", 
-                        "status": true, 
-                        "userID": user.userID 
-                    });
-                } else {
-                    return res.send({ "message": "เกิดข้อผิดพลาดในการอัปเดตข้อมูล", "status": false });
-                }
+                await db.promise().query("UPDATE User SET loginAttempt = 0, lastAttemptTime = NOW(), isActive = 1 WHERE userID = ?", [user.userID]);
+                return res.send({ 
+                    "message": "เข้าสู่ระบบสำเร็จ", 
+                    "status": true, 
+                    "userID": user.userID 
+                });
             } else {
-                // เพิ่มจำนวนครั้งที่พยายามเข้าสู่ระบบและอัปเดต lastAttemptTime
-                const updateSql = "UPDATE User SET loginAttempt = loginAttempt + 1, lastAttemptTime = NOW() WHERE userID = ?";
-                const [updateResult] = await db.promise().query(updateSql, [user.userID]);
+                const [updateResult] = await db.promise().query("UPDATE User SET loginAttempt = loginAttempt + 1, lastAttemptTime = NOW() WHERE userID = ?", [user.userID]);
 
-                // ตรวจสอบว่ามีการอัปเดตสำเร็จหรือไม่
                 if (updateResult.affectedRows > 0) {
-                    if (loginAttempt >= 2) {
+                    if (loginAttempt + 1 === baseLockDuration) {
+                        await db.promise().query("UPDATE User SET isActive = 0 WHERE userID = ?", [user.userID]);
                         return res.send({ 
-                            "message": "บัญชีคุณถูกล็อคเนื่องจากมีการพยายามเข้าสู่ระบบเกินกำหนด", 
+                            "message": `บัญชีถูกล็อค กรุณาลองอีกครั้งใน ${lockIntervals[0]} วินาที`, 
+                            "status": false 
+                        });
+                    } else if (loginAttempt + 1 > baseLockDuration) {
+                        await db.promise().query("UPDATE User SET isActive = 0 WHERE userID = ?", [user.userID]);
+                        return res.send({ 
+                            "message": `บัญชีถูกล็อค กรุณาลองอีกครั้งใน ${lockIntervals[Math.min(loginAttempt - baseLockDuration, lockIntervals.length - 1)]} วินาที`, 
                             "status": false 
                         });
                     } else {
@@ -155,11 +137,10 @@ app.post('/api/login', async function(req, res) {
             return res.send({ "message": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", "status": false });
         }
     } catch (err) {
-        console.error('Error during login process:', err);
-        return res.status(500).send({ "message": "เกิดข้อผิดพลาดในการเชื่อมต่อ", "status": false });
+        console.log('Error during login process:', err);
+        return res.status(500).send("เกิดข้อผิดพลาดในการเชื่อมต่อ");
     }
 });
-
 
 
 // API Logout
