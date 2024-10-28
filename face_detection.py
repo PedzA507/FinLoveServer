@@ -68,7 +68,7 @@ def predict():
         return jsonify({"error": f"Model prediction error: {str(e)}"}), 500
 
     # กำหนดค่า is_human ตาม confidence_score โดยใช้เกณฑ์ใหม่
-    is_human = confidence_score < 0.95  # ถ้า confidence_score น้อยกว่า 0.01 จะถือว่าเป็นมนุษย์
+    is_human = confidence_score < 0.95  # ถ้า confidence_score น้อยกว่า 95 จะถือว่าเป็นมนุษย์
     verification_status = 1 if is_human else 0  # ถ้าเป็นมนุษย์จะเป็น 1, ถ้าไม่ใช่มนุษย์จะเป็น 0
 
     try:

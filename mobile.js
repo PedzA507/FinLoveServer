@@ -279,7 +279,7 @@ app.post('/api/request-pin', async (req, res) => {
         const [result] = await db.promise().query("SELECT userID FROM User WHERE email = ?", [email]);
 
         if (result.length === 0) {
-            return res.status(400).send({ message: "ไม่พบอีเมลนี้ในระบบ", status: false });
+            return res.status(400).send("ไม่พบอีเมลนี้ในระบบ"); // ส่งข้อความโดยตรง
         }
 
         const userID = result[0].userID;  // ดึง userID เพื่ออัพเดต PIN
@@ -294,7 +294,7 @@ app.post('/api/request-pin', async (req, res) => {
 
         // ตรวจสอบการอัพเดต
         if (updateResult[0].affectedRows === 0) {
-            return res.status(500).send({ message: "ไม่สามารถอัพเดต PIN ได้", status: false });
+            return res.status(500).send("ไม่สามารถอัพเดต PIN ได้");
         }
 
         // ส่ง PIN ไปยังอีเมลผู้ใช้
@@ -310,9 +310,10 @@ app.post('/api/request-pin', async (req, res) => {
         res.send("PIN ถูกส่งไปยังอีเมลของคุณ");
     } catch (err) {
         console.error('Error sending PIN:', err);
-        res.status(500).send({ message: "เกิดข้อผิดพลาดในการส่ง PIN", status: false });
+        res.status(500).send("เกิดข้อผิดพลาดในการส่ง PIN");
     }
 });
+
 
 
 // API Verify PIN
@@ -327,7 +328,7 @@ app.post('/api/verify-pin', async (req, res) => {
         );
 
         if (result.length === 0) {
-            return res.status(400).send({ message: "PIN ไม่ถูกต้อง", status: false });
+            return res.status(400).send("PIN ไม่ถูกต้อง"); // ส่งข้อความภาษาไทยโดยตรง
         }
 
         const user = result[0];
@@ -335,16 +336,17 @@ app.post('/api/verify-pin', async (req, res) => {
 
         // ตรวจสอบว่า PIN หมดอายุหรือไม่
         if (currentTime > user.pinCodeExpiration) {
-            return res.status(400).send({ message: "PIN หมดอายุ", status: false });
+            return res.status(400).send("PIN หมดอายุ"); // ส่งข้อความภาษาไทยโดยตรง
         }
 
         // ถ้า PIN ถูกต้องและยังไม่หมดอายุ
-        res.send({ message: "PIN ถูกต้อง", status: true });
+        res.send("PIN ถูกต้อง"); // ส่งข้อความภาษาไทยโดยตรง
     } catch (err) {
-        console.error("Error verifying PIN:", err);
-        res.status(500).send({ message: "เกิดข้อผิดพลาดในการยืนยัน PIN", status: false });
+        console.log("Error verifying PIN:", err); // ใช้ console.log เพื่อหลีกเลี่ยงการแสดง Error:
+        res.status(500).send("เกิดข้อผิดพลาดในการยืนยัน PIN"); // ส่งข้อความภาษาไทยโดยตรง
     }
 });
+
 
 
 // API Reset Password
