@@ -1,7 +1,7 @@
 const express = require('express');
 const mysql = require('mysql2');
 const app = express();
-const port = process.env.SERVER_PORT || 5000;
+const port = process.env.SERVER_PORT || 7000;
 const https = require('https');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');

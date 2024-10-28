@@ -627,27 +627,22 @@ app.post('/api/user/update_preferences/:id', async function (req, res) {
 });
 
 
-// API All Update
 app.put('/api/user/update/:id', upload.single('image'), async function (req, res) {
     const { id } = req.params;
     let { username, email, firstname, lastname, nickname, gender, interestGender, height, home, DateBirth, education, goal, preferences } = req.body;
     const image = req.file ? req.file.filename : null;
 
     try {
-        // ตรวจสอบว่า username ไม่เป็นค่าว่าง
         if (!username || username.trim() === "") {
             return res.status(400).send({ message: "Username ไม่สามารถเว้นว่างได้", status: false });
         }
 
-        // Fetch current user data
         const [userResult] = await db.promise().query("SELECT * FROM User WHERE userID = ?", [id]);
         if (userResult.length === 0) {
             return res.status(404).send({ message: "ไม่พบผู้ใช้ที่ต้องการอัปเดต", status: false });
         }
 
         const currentUser = userResult[0];
-
-        // Translate GenderID, EducationID, GoalID, InterestGenderID
         let genderID = currentUser.GenderID;
         if (gender) {
             const [genderResult] = await db.promise().query("SELECT GenderID FROM gender WHERE Gender_Name = ?", [gender]);
@@ -680,12 +675,9 @@ app.put('/api/user/update/:id', upload.single('image'), async function (req, res
             }
         }
 
-        // อัปเดต preferences หลายรายการ
         if (preferences && Array.isArray(preferences)) {
-            // ลบ preference เก่าทั้งหมดของผู้ใช้
             await db.promise().query("DELETE FROM userpreferences WHERE userID = ?", [id]);
 
-            // เพิ่ม preference ใหม่
             for (const preference of preferences) {
                 const [preferenceResult] = await db.promise().query("SELECT PreferenceID FROM preferences WHERE PreferenceNames = ?", [preference]);
                 if (preferenceResult.length > 0) {
@@ -694,19 +686,15 @@ app.put('/api/user/update/:id', upload.single('image'), async function (req, res
             }
         }
 
-        // Handle image update
         let currentImageFile = image;
         if (!currentImageFile) {
-            // ถ้าไม่มีภาพใหม่และผู้ใช้ไม่มีภาพเก่าอยู่ในระบบ ให้ currentImageFile เป็นค่าว่าง
             currentImageFile = currentUser.imageFile || '';
         } else {
-            // ถ้ามีการอัปโหลดภาพใหม่ ให้ทำการตั้งชื่อไฟล์ใหม่และอัปเดต
             const ext = path.extname(req.file.originalname);
             const newFileName = `${uuidv4()}${ext}`;
             fs.renameSync(req.file.path, path.join('assets/user', newFileName));
             currentImageFile = newFileName;
 
-            // ลบภาพเก่าถ้ามีอยู่
             if (currentUser.imageFile && currentUser.imageFile !== '') {
                 const oldImagePath = path.join(__dirname, 'assets/user', currentUser.imageFile);
                 if (fs.existsSync(oldImagePath)) {
@@ -715,12 +703,13 @@ app.put('/api/user/update/:id', upload.single('image'), async function (req, res
             }
         }
 
-        // อัปเดตข้อมูลผู้ใช้ รวมถึง InterestGenderID, PreferenceID และรูปภาพ
+        let dateBirth = DateBirth ? DateBirth.split('T')[0] : currentUser.DateBirth;
+
         const sqlUpdate = `
             UPDATE User 
             SET username = ?, email = ?, firstname = ?, lastname = ?, nickname = ?, imageFile = ?, GenderID = ?, InterestGenderID = ?, height = ?, home = ?, DateBirth = ?, educationID = ?, goalID = ?
             WHERE userID = ?`;
-        await db.promise().query(sqlUpdate, [username, email, firstname, lastname, nickname, currentImageFile, genderID, interestGenderID, height, home, DateBirth, educationID, goalID, id]);
+        await db.promise().query(sqlUpdate, [username, email, firstname, lastname, nickname, currentImageFile, genderID, interestGenderID, height, home, dateBirth, educationID, goalID, id]);
 
         const imageUrl = currentImageFile ? `${req.protocol}://${req.get('host')}/assets/user/${currentImageFile}` : null;
 
