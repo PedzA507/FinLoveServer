@@ -1171,6 +1171,29 @@ app.post('/api/delete-chat', (req, res) => {
     });
 });
 
+
+app.post('/api/restore-all-chats', (req, res) => {
+    const { userID } = req.body;
+
+    if (!userID) {
+        return res.status(400).json({ error: 'Missing userID' });
+    }
+
+    const restoreAllQuery = `
+        DELETE FROM deleted_chats
+        WHERE userID = ?;
+    `;
+
+    db.query(restoreAllQuery, [userID], (err, result) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.status(200).json({ success: 'All chats restored successfully' });
+    });
+});
+
+
+
 // API Block User
 app.post('/api/block-chat', (req, res) => {
     const { userID, matchID, isBlocked } = req.body;
