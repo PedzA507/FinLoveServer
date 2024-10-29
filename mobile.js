@@ -56,11 +56,12 @@ app.use(helmet());
 const rateLimit = require('express-rate-limit');
 
 const loginLimiter = rateLimit({
-    windowMs: 10 * 1000, // เริ่มต้นล็อก 10 วินาที
+    windowMs: 600 * 1000, // เริ่มต้นล็อก 1 ชั่วโมง
     max: 5, // Limit each IP to 5 requests per windowMs
     message: "Too many login attempts from this IP, please try again after 10 seconds"
 }); 
 
+app.use(loginLimiter); // นำไปใช้กับทุกเส้นทาง
 
 ///////////////////////////////////////////////////////////// Login Logout /////////////////////////////////////////////////////////////
 
@@ -80,10 +81,10 @@ app.post('/api/login', async function(req, res) {
             const lastAttemptTime = user.lastAttemptTime ? new Date(user.lastAttemptTime) : null;
             const now = new Date();
             
-            // ระยะเวลาล็อกแบบไล่ตามขั้นบันได (เริ่มที่ 10 วินาทีเมื่อผิดครั้งที่ 5)
-            const lockIntervals = [10, 30, 60, 300, 600]; // หน่วยเป็นวินาที
+            // ระยะเวลาล็อกแบบไล่ตามขั้นบันได (เริ่มที่ 1 นาทีเมื่อผิดครั้งที่ 5)
+            const lockIntervals = [60, 300, 600, 1200, 1800]; // หน่วยเป็นวินาที (เริ่มต้นที่ 1 นาที)
             const baseLockDuration = 5; // เริ่มล็อกเมื่อล็อกอินผิดครั้งที่ 5
-            let lockDuration = lockIntervals[0] * 1000; // เริ่มล็อกครั้งแรก 10 วินาที
+            let lockDuration = lockIntervals[0] * 1000; // เริ่มล็อกครั้งแรก 1 นาที
 
             if (loginAttempt >= baseLockDuration) {
                 lockDuration = lockIntervals[Math.min(loginAttempt - baseLockDuration, lockIntervals.length - 1)] * 1000; // ใช้ lockIntervals ที่เหมาะสม
@@ -141,6 +142,7 @@ app.post('/api/login', async function(req, res) {
         return res.status(500).send("เกิดข้อผิดพลาดในการเชื่อมต่อ");
     }
 });
+
 
 
 // API Logout
