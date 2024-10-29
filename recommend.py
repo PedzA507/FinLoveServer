@@ -22,7 +22,7 @@ def create_connection():
 # Path to the folder where images are stored
 IMAGE_FOLDER = os.path.join(os.getcwd(), 'assets', 'user')
 
-@app.route('/api/recommend/<int:id>', methods=['GET'])
+@app.route('/ai/recommend/<int:id>', methods=['GET'])
 def recommend(id):
     # สร้างการเชื่อมต่อใหม่ทุกครั้งที่เรียกใช้งาน
     conn = create_connection()

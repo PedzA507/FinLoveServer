@@ -32,7 +32,7 @@ def delete_file_after_delay(file_path, delay):
     timer = threading.Timer(delay, delete_file)
     timer.start()
 
-@app.route('/predict', methods=['POST'])
+@app.route('/ai/predict', methods=['POST'])
 def predict():
     if 'image' not in request.files or 'UserID' not in request.form:
         return jsonify({"error": "Missing image or UserID"}), 400
